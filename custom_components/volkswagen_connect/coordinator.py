@@ -157,14 +157,26 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             self.portal.import_cookies(cookies)
 
     async def _async_update_data(self) -> dict[str, VehicleData]:
+        result: dict[str, VehicleData] = {}
         try:
             vehicles = await self.client.list_vehicles()
         except EuDataActAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except EuDataActError as err:
-            raise UpdateFailed(str(err)) from err
-
-        result: dict[str, VehicleData] = {}
+            # The EU Data Act backend is flaky; with a portal session available
+            # its outage must not take down the whole integration.
+            if self.portal is None:
+                raise UpdateFailed(str(err)) from err
+            _LOGGER.warning(
+                "EU Data Act vehicle list failed (%s); continuing with portal data only", err
+            )
+            # Carry known vehicles forward (EU Data Act values stay empty this
+            # cycle) so the portal merge below still refreshes its half.
+            result = {
+                vin: VehicleData(vin=vin, info=dict(d.info))
+                for vin, d in (self.data or {}).items()
+            }
+            vehicles = []
         for v in vehicles:
             vin = v.get("vin")
             if not vin:
