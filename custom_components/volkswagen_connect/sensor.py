@@ -71,12 +71,12 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "last_lock_action_time": {"name": "Last lock command time", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-outline"},
     # Live battery / charging (from charging/status)
     "soc": {"name": "Battery", "device_class": SensorDeviceClass.BATTERY, "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT},
-    "electric_range": {"name": "Electric range", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "icon": "mdi:map-marker-distance"},
+    "electric_range": {"name": "Electric range", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:map-marker-distance"},
     "target_soc": {"name": "Target battery", "unit": PERCENTAGE, "icon": "mdi:battery-charging-high"},
     "battery_temp": {"name": "Battery temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
     "charging_state": {"name": "Charging state", "icon": "mdi:ev-station"},
     "charge_power": {"name": "Charge power", "device_class": SensorDeviceClass.POWER, "unit": UnitOfPower.KILO_WATT, "state_class": SensorStateClass.MEASUREMENT},
-    "charge_rate": {"name": "Charge rate", "unit": UnitOfSpeed.KILOMETERS_PER_HOUR, "icon": "mdi:speedometer"},
+    "charge_rate": {"name": "Charge rate", "unit": UnitOfSpeed.KILOMETERS_PER_HOUR, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:speedometer"},
     "charge_time_remaining": {"name": "Charge time remaining", "device_class": SensorDeviceClass.DURATION, "unit": UnitOfTime.MINUTES, "icon": "mdi:timer-sand"},
     "charge_mode": {"name": "Charge mode", "icon": "mdi:cog"},
     "plug_connection": {"name": "Plug", "icon": "mdi:power-plug"},
@@ -86,17 +86,17 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     # Friendly labels + units for the meaningful "continuous data" signals. The
     # long tail of raw fields keeps its dotted dataFieldName as its label.
     "mileage.value": {"name": "Mileage", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "state_class": SensorStateClass.TOTAL_INCREASING, "icon": "mdi:counter"},
-    "primary_range": {"name": "Primary range", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "icon": "mdi:map-marker-distance"},
+    "primary_range": {"name": "Primary range", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:map-marker-distance"},
     "battery_level_HV.value": {"name": "Battery level", "device_class": SensorDeviceClass.BATTERY, "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT},
     "battery_state_report.soc": {"name": "Battery state of charge", "device_class": SensorDeviceClass.BATTERY, "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT},
     "battery_state_report.charge_power": {"name": "Charge power (report)", "device_class": SensorDeviceClass.POWER, "unit": UnitOfPower.KILO_WATT, "state_class": SensorStateClass.MEASUREMENT},
-    "battery_state_report.charge_rate": {"name": "Charge rate (report)", "unit": UnitOfSpeed.KILOMETERS_PER_HOUR, "icon": "mdi:speedometer"},
+    "battery_state_report.charge_rate": {"name": "Charge rate (report)", "unit": UnitOfSpeed.KILOMETERS_PER_HOUR, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:speedometer"},
     "battery_state_report.charge_energy": {"name": "Charge energy", "icon": "mdi:lightning-bolt"},
     "battery_care_mode.charge_bcam_threshold": {"name": "Battery care threshold", "unit": PERCENTAGE, "icon": "mdi:battery-heart-variant"},
     "settings.target_soc": {"name": "Target SoC (setting)", "unit": PERCENTAGE, "icon": "mdi:battery-charging-high"},
     "outdoor_temperature": {"name": "Outdoor temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
-    "min_temperature": {"name": "Climate min temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS},
-    "max_temperature": {"name": "Climate max temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS},
+    "min_temperature": {"name": "Climate min temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
+    "max_temperature": {"name": "Climate max temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
     "car_captured_time": {"name": "Car captured time", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-check"},
     "car_captured_utc_timestamp": {"name": "Car captured (UTC)", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-outline"},
     "instrument_cluster_time": {"name": "Instrument cluster time", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-outline"},
@@ -112,12 +112,12 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "parking_light_left": {"name": "Parking light left", "icon": "mdi:car-parking-lights"},
     "parking_light_right": {"name": "Parking light right", "icon": "mdi:car-parking-lights"},
     "window_heating_state": {"name": "Window heating", "icon": "mdi:car-defrost-rear"},
-    "additional_consumptions.residual_consumption": {"name": "Residual consumption", "icon": "mdi:flash"},
-    "additional_consumptions.interior_climatization_consumption": {"name": "Climatisation consumption", "icon": "mdi:fan"},
-    "slope_consumption_values.ascent_slope_consumption.physical_value": {"name": "Ascent slope consumption", "icon": "mdi:trending-up"},
-    "slope_consumption_values.descent_slope_consumption.physical_value": {"name": "Descent slope consumption", "icon": "mdi:trending-down"},
-    "energy_contents.current_energy_content.physical_value": {"name": "Current energy content", "icon": "mdi:battery-charging"},
-    "energy_contents.maximal_energy_content.physical_value": {"name": "Maximal energy content", "icon": "mdi:battery"},
+    "additional_consumptions.residual_consumption": {"name": "Residual consumption", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:flash"},
+    "additional_consumptions.interior_climatization_consumption": {"name": "Climatisation consumption", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:fan"},
+    "slope_consumption_values.ascent_slope_consumption.physical_value": {"name": "Ascent slope consumption", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:trending-up"},
+    "slope_consumption_values.descent_slope_consumption.physical_value": {"name": "Descent slope consumption", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:trending-down"},
+    "energy_contents.current_energy_content.physical_value": {"name": "Current energy content", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:battery-charging"},
+    "energy_contents.maximal_energy_content.physical_value": {"name": "Maximal energy content", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:battery"},
     "charging_state_report.charge_type": {"name": "Charge type", "icon": "mdi:ev-plug-type2"},
     "charging_state_report.charge_mode": {"name": "Charge mode (report)", "icon": "mdi:cog"},
     "charging_state_report.current_charge_state": {"name": "Charge state (report)", "icon": "mdi:ev-station"},
@@ -355,6 +355,15 @@ class VolkswagenConnectValueSensor(_Base):
             self._attr_state_class = meta["state_class"]
         if "icon" in meta:
             self._attr_icon = meta["icon"]
+        if not meta and self._is_numeric():
+            # Uncurated numeric fields would otherwise render as discrete
+            # string states in HA (no graphs, no statistics) — see issue #12.
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    def _is_numeric(self) -> bool:
+        v = self._vehicle
+        val = v.values.get(self._key) if v else None
+        return isinstance(val, (int, float)) and not isinstance(val, bool)
 
     @property
     def native_value(self) -> StateType:
