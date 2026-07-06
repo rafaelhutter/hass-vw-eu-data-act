@@ -20,6 +20,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfEnergy,
     UnitOfLength,
     UnitOfPower,
     UnitOfSpeed,
@@ -91,7 +92,7 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "battery_state_report.soc": {"name": "Battery state of charge", "device_class": SensorDeviceClass.BATTERY, "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT},
     "battery_state_report.charge_power": {"name": "Charge power (report)", "device_class": SensorDeviceClass.POWER, "unit": UnitOfPower.KILO_WATT, "state_class": SensorStateClass.MEASUREMENT},
     "battery_state_report.charge_rate": {"name": "Charge rate (report)", "unit": UnitOfSpeed.KILOMETERS_PER_HOUR, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:speedometer"},
-    "battery_state_report.charge_energy": {"name": "Charge energy", "icon": "mdi:lightning-bolt"},
+    "battery_state_report.charge_energy": {"name": "Charge energy", "device_class": SensorDeviceClass.ENERGY, "unit": UnitOfEnergy.KILO_WATT_HOUR, "icon": "mdi:lightning-bolt"},
     "battery_care_mode.charge_bcam_threshold": {"name": "Battery care threshold", "unit": PERCENTAGE, "icon": "mdi:battery-heart-variant"},
     "settings.target_soc": {"name": "Target SoC (setting)", "unit": PERCENTAGE, "icon": "mdi:battery-charging-high"},
     "outdoor_temperature": {"name": "Outdoor temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
