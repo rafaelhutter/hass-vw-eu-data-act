@@ -1,0 +1,75 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Volkswagen Connect",
+        "description": "Connectez-vous avec votre identifiant Volkswagen. Vous recevrez un code de vérification par e-mail (OTP) pour la source de données volkswagen.de — saisissez-le à l'étape suivante. (Optionnel/expérimental : activez aussi une requête de données EU Data Act toutes les 15 minutes sur https://eu-data-act.drivesomethinggreater.com.)",
+        "data": {
+          "email": "E-mail",
+          "password": "Mot de passe",
+          "brand": "Marque"
+        }
+      },
+      "otp": {
+        "title": "Code de vérification",
+        "description": "Volkswagen vous a envoyé un code de vérification par e-mail pour la source de données volkswagen.de (batterie, charge, kilométrage, entretien, témoins d'alerte, image). Saisissez-le ici. Vous pouvez annuler pour ignorer cette étape, mais aucune donnée ne sera alors disponible.",
+        "data": {
+          "otp": "Code reçu par e-mail"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Se reconnecter",
+        "description": "Saisissez à nouveau le mot de passe pour {email}.",
+        "data": {
+          "password": "Mot de passe"
+        }
+      },
+      "reconfigure": {
+        "title": "Volkswagen Connect",
+        "description": "Reconnectez-vous pour rétablir la connexion. Vous recevrez un nouveau code de vérification par e-mail (OTP) pour la source de données volkswagen.de — saisissez-le à l'étape suivante. Utilisez cette option si les données en direct se sont arrêtées avec un message « session expirée ».",
+        "data": {
+          "email": "E-mail",
+          "password": "Mot de passe",
+          "brand": "Marque"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-mail ou mot de passe invalide.",
+      "cannot_connect": "Impossible de se connecter à Volkswagen. Veuillez réessayer.",
+      "invalid_otp": "Ce code de vérification n'a pas été accepté. Vérifiez le dernier e-mail reçu et réessayez.",
+      "unknown": "Une erreur s'est produite lors de la connexion. Veuillez réessayer ; si le problème persiste, activez les journaux de débogage et ouvrez un ticket."
+    },
+    "abort": {
+      "already_configured": "Ce compte est déjà configuré.",
+      "reauth_successful": "La reconnexion a réussi.",
+      "reconfigure_successful": "La reconnexion a réussi.",
+      "account_mismatch": "Veuillez vous connecter avec le compte Volkswagen configuré à l'origine."
+    }
+  },
+  "selector": {
+    "brand": {
+      "options": {
+        "VOLKSWAGEN_PASSENGER_CARS": "Volkswagen (voitures particulières)",
+        "VOLKSWAGEN_COMMERCIAL_VEHICLES": "Volkswagen Véhicules Utilitaires",
+        "AUDI": "Audi",
+        "BENTLEY": "Bentley",
+        "SKODA": "Škoda",
+        "SEAT": "SEAT",
+        "CUPRA": "CUPRA"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "data_status": {
+        "name": "État des données",
+        "state": {
+          "ok": "OK",
+          "no_data": "Pas encore de données",
+          "not_configured": "Aucune requête de données configurée"
+        }
+      }
+    }
+  }
+}

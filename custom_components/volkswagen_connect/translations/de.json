@@ -1,0 +1,75 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Volkswagen Connect",
+        "description": "Melde dich mit deiner Volkswagen ID an. Du erhältst einen Bestätigungscode per E-Mail (OTP) für die Datenquelle volkswagen.de — gib ihn im nächsten Schritt ein. (Optional/experimentell: Aktiviere zusätzlich eine 15-Minuten-Datenanfrage nach EU-Datengesetz auf https://eu-data-act.drivesomethinggreater.com.)",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "brand": "Marke"
+        }
+      },
+      "otp": {
+        "title": "Bestätigungscode",
+        "description": "Volkswagen hat dir einen Bestätigungscode für die Datenquelle volkswagen.de (Batterie, Laden, Kilometerstand, Service, Warnleuchten, Bild) per E-Mail geschickt. Gib ihn hier ein. Du kannst abbrechen und den Schritt überspringen, dann sind aber noch keine Daten verfügbar.",
+        "data": {
+          "otp": "Code aus der E-Mail"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Erneut anmelden",
+        "description": "Gib das Passwort für {email} erneut ein.",
+        "data": {
+          "password": "Passwort"
+        }
+      },
+      "reconfigure": {
+        "title": "Volkswagen Connect",
+        "description": "Melde dich erneut an, um die Verbindung wiederherzustellen. Du erhältst einen neuen Bestätigungscode per E-Mail (OTP) für die Datenquelle volkswagen.de — gib ihn im nächsten Schritt ein. Nutze dies, wenn die Live-Daten mit einer „Sitzung abgelaufen“-Meldung gestoppt haben.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "brand": "Marke"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-Mail oder Passwort ungültig.",
+      "cannot_connect": "Verbindung zu Volkswagen fehlgeschlagen. Bitte versuche es erneut.",
+      "invalid_otp": "Dieser Bestätigungscode wurde nicht akzeptiert. Prüfe die neueste E-Mail und versuche es erneut.",
+      "unknown": "Bei der Anmeldung ist etwas schiefgelaufen. Bitte versuche es erneut; wenn es weiterhin fehlschlägt, aktiviere das Debug-Logging und eröffne ein Issue."
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits eingerichtet.",
+      "reauth_successful": "Die erneute Anmeldung war erfolgreich.",
+      "reconfigure_successful": "Die erneute Anmeldung war erfolgreich.",
+      "account_mismatch": "Bitte melde dich mit dem ursprünglich eingerichteten Volkswagen-Konto an."
+    }
+  },
+  "selector": {
+    "brand": {
+      "options": {
+        "VOLKSWAGEN_PASSENGER_CARS": "Volkswagen (Pkw)",
+        "VOLKSWAGEN_COMMERCIAL_VEHICLES": "Volkswagen Nutzfahrzeuge",
+        "AUDI": "Audi",
+        "BENTLEY": "Bentley",
+        "SKODA": "Škoda",
+        "SEAT": "SEAT",
+        "CUPRA": "CUPRA"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "data_status": {
+        "name": "Datenstatus",
+        "state": {
+          "ok": "OK",
+          "no_data": "Noch keine Daten",
+          "not_configured": "Keine Datenanfrage eingerichtet"
+        }
+      }
+    }
+  }
+}
