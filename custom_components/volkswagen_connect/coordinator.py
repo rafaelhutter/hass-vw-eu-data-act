@@ -244,7 +244,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             _LOGGER.debug("Session refresh failed (continuing): %s", err)
 
     async def _merge_portal(self, result: dict[str, VehicleData]) -> None:
-        """Best-effort: enrich vehicles with portal data. Never blocks setup.
+        """Enrich vehicles with portal data; a dead session raises reauth.
 
         Keep-alive: the portal session's downstream tokens expire ~30 min after
         the last login and are NOT renewed by data calls, while the identity SSO
@@ -258,7 +258,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         assert self.portal is not None
         await self.async_refresh_session()
 
-        session_dead = False
+        auth_failed: WebsitePortalAuthError | None = None
         try:
             # If EU Data Act surfaced no vehicles, discover the VIN via the portal.
             if not result:
@@ -291,20 +291,21 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                             data.values.pop(field, None)
                 data.portal_ok = True
         except WebsitePortalAuthError as err:
-            session_dead = True
-            _LOGGER.warning(
-                "Website portal session expired (%s). Live data is paused; "
-                "open the integration and Reconfigure to restore it.",
-                err,
-            )
+            auth_failed = err
         except Exception as err:  # noqa: BLE001 - portal must never break EU Data Act
             _LOGGER.warning("Website portal update failed, skipping this cycle: %s", err)
         finally:
             # Persist the freshest cookies so the rolled SSO survives a restart —
             # but only while the session is still alive. Saving a known-dead set
             # over a good one just guarantees the next start also fails.
-            if not session_dead:
+            if auth_failed is None:
                 try:
                     self._persist_portal_cookies()
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Could not persist portal cookies: %s", err)
+        if auth_failed is not None:
+            # Surface it as a proper reauth: HA shows a "Reauthentication
+            # required" repair instead of entities silently going stale (#13).
+            raise ConfigEntryAuthFailed(
+                f"Volkswagen session expired ({auth_failed}); please log in again"
+            ) from auth_failed

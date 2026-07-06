@@ -49,6 +49,10 @@ for the vehicle once:
 During integration setup you log in with the same Volkswagen ID and approve an
 **email OTP**; the integration then reuses that website session.
 
+If VW later invalidates that session, Home Assistant shows a **Reauthentication
+required** prompt on the integration — re-enter your password (plus the email
+OTP) there and the data resumes. No need to remove and re-add anything.
+
 ## Install
 
 **HACS (recommended)**
