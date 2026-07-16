@@ -1,0 +1,75 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Volkswagen Connect",
+        "description": "Fai login con il tuo Volkswagen ID. Riceverai via email un codice di verifica (OTP) dal sito volkswagen.de — inseriscilo nello step successivo. (Opzionale/sperimentale: abilita le richieste EU Data Act ogni 15 minuti su https://eu-data-act.drivesomethinggreater.com.)",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "brand": "Brand"
+        }
+      },
+      "otp": {
+        "title": "Codice due fattore (Two-factor)",
+        "description": "Volkswagen ti ha inviato una codice via email per il sito the volkswagen.de (batteria, stato di carica, odometro, service, luci, immagine). Inseriscilo qui. Puoi cancellare per saltare il apssaggio ma nessun dato sarà disponibile.",
+        "data": {
+          "otp": "codice da Email"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ri-autenticazione",
+        "description": "Inserisci nuovamente la password per {email}.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "reconfigure": {
+        "title": "Volkswagen Connect",
+        "description": "Fai nuovamente login per ripristinare la connessione. Riceverai una email con un nuovo codice di verifica (OTP) per il sito volkswagen.de — inseriscila nel prossimo step. Usalo in caso i dati live si interrompono con un messaggio 'session expired'.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "brand": "Brand"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Password o email non corrette.",
+      "cannot_connect": "Non è possibile connettersi a Volkswagen. Riprova.",
+      "invalid_otp": "Il codice di verifica non è stato acceettato. Controlla l'ultima email e riprova.",
+      "unknown": "Qualcosa è andato storto durante l'accesso. Prova nuovamente; se continua a fallire, abilita i log ed apri una issue."
+    },
+    "abort": {
+      "already_configured": "Questo account è già configurato.",
+      "reauth_successful": "Ri-autenticazione riuscita.",
+      "reconfigure_successful": "La riconfigurazione è riuscita.",
+      "account_mismatch": "Per favore fai l'accesso con lo stesso account Volkswagen utilizzato per la prima configurazione."
+    }
+  },
+  "selector": {
+    "brand": {
+      "options": {
+        "VOLKSWAGEN_PASSENGER_CARS": "Volkswagen (trasporto persone)",
+        "VOLKSWAGEN_COMMERCIAL_VEHICLES": "Volkswagen Veicoli Commerciali",
+        "AUDI": "Audi",
+        "BENTLEY": "Bentley",
+        "SKODA": "Škoda",
+        "SEAT": "SEAT",
+        "CUPRA": "CUPRA"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "data_status": {
+        "name": "Data status",
+        "state": {
+          "ok": "OK",
+          "no_data": "Nessun dato",
+          "not_configured": "Nessuna richiesta configurata"
+        }
+      }
+    }
+  }
+}
