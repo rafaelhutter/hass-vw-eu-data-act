@@ -36,6 +36,9 @@
     },
     "error": {
       "invalid_auth": "Invalid email or password.",
+      "not_authorised": "This account isn't set up on the Volkswagen data portal yet. Open https://eu-data-act.drivesomethinggreater.com in a browser, sign in, accept the consent screen, link your car and turn on a continuous 15-minute data request, then try again.",
+      "throttled": "Too many sign-in attempts — Volkswagen has temporarily blocked logins for this account. Wait about 30 minutes and try again.",
+      "account_locked": "Your Volkswagen account looks locked or disabled. Sign in at volkswagen.de to sort it out, then try again.",
       "cannot_connect": "Could not connect to Volkswagen. Please try again.",
       "invalid_otp": "That verification code was not accepted. Check the latest email and try again.",
       "unknown": "Something went wrong during login. Please try again; if it keeps failing, enable debug logging and open an issue."

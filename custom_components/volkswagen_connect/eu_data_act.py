@@ -73,7 +73,15 @@ class EuDataActError(Exception):
 
 
 class EuDataActAuthError(EuDataActError):
-    """Login failed (bad credentials, consent screen, throttled, …)."""
+    """Login failed (bad credentials, consent screen, throttled, …).
+
+    ``reason`` is a config-flow error key so the UI can explain *why* instead of
+    always showing "invalid email or password".
+    """
+
+    def __init__(self, message: str, reason: str = "invalid_auth") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class EuDataActNotConfigured(EuDataActError):
@@ -331,7 +339,8 @@ class EuDataActClient:
             landing_url = str(resp.url)
 
         if "signin-service" in landing_url or "/error" in landing_url:
-            raise EuDataActAuthError(_diagnose_login_failure(landing_url, landing))
+            reason, message = _diagnose_login_failure(landing_url, landing)
+            raise EuDataActAuthError(message, reason=reason)
         if urlparse(landing_url).hostname != urlparse(BASE_URL).hostname:
             raise EuDataActAuthError(f"login did not land on portal (url={landing_url})")
         self._logged_in = True
@@ -450,9 +459,15 @@ class EuDataActClient:
         }
 
 
-def _diagnose_login_failure(url: str, body: str) -> str:
-    if "/signin-service/v1/consent/" in url or "consent-screen" in (body or ""):
-        return (
+def _diagnose_login_failure(url: str, body: str) -> tuple[str, str]:
+    """Classify a signin-service failure into a (config-flow error key, message).
+
+    The error key drives what the user is shown, so consent-not-accepted and
+    throttling read as themselves instead of a misleading "invalid email or
+    password" (see #14).
+    """
+    if "/consent" in url or "/terms-and-conditions" in url or "consent-screen" in (body or ""):
+        return "not_authorised", (
             "EU Data Act portal not yet authorised for this account. Open "
             f"{BASE_URL}/ in a browser, log in, click Allow on the consent screen, "
             "and finish portal setup (vehicle linking + continuous 15-min data request)."
@@ -466,11 +481,13 @@ def _diagnose_login_failure(url: str, body: str) -> str:
         pass
     code = code or _login_error(body) or ""
     if re.search(r"password_invalid", code, re.I):
-        return "Login failed: password incorrect."
+        return "invalid_auth", "Login failed: password incorrect."
     if re.search(r"email_invalid|user_id|identifier", code, re.I):
-        return "Login failed: email not recognised by VW Identity."
+        return "invalid_auth", "Login failed: email not recognised by VW Identity."
     if re.search(r"throttle|rate_limit|too_many", code, re.I):
-        return "Login failed: too many attempts, throttled by VW. Wait ~30 min."
+        return "throttled", "Login failed: too many attempts, throttled by VW. Wait ~30 min."
     if re.search(r"account_disabled|locked|blocked", code, re.I):
-        return "Login failed: VW account locked/disabled."
-    return f"Login failed: {code}" if code else f"Login failed (no error code). URL: {url}"
+        return "account_locked", "Login failed: VW account locked/disabled."
+    return "invalid_auth", (
+        f"Login failed: {code}" if code else f"Login failed (no error code). URL: {url}"
+    )

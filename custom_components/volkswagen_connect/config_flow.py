@@ -125,7 +125,7 @@ class VolkswagenConnectConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._validate_eudataact(user_input)
             except EuDataActAuthError as err:
                 _LOGGER.warning("EU Data Act login rejected during setup: %s", err)
-                errors["base"] = "invalid_auth"
+                errors["base"] = err.reason
             except EuDataActError as err:
                 _LOGGER.warning("EU Data Act could not connect during setup: %s", err)
                 errors["base"] = "cannot_connect"
@@ -174,7 +174,7 @@ class VolkswagenConnectConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._validate_eudataact(self._collected)
             except EuDataActAuthError as err:
                 _LOGGER.warning("EU Data Act login rejected during reauth: %s", err)
-                errors["base"] = "invalid_auth"
+                errors["base"] = err.reason
             except EuDataActError as err:
                 _LOGGER.warning("EU Data Act could not connect during reauth: %s", err)
                 errors["base"] = "cannot_connect"
@@ -209,7 +209,7 @@ class VolkswagenConnectConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._validate_eudataact(user_input)
             except EuDataActAuthError as err:
                 _LOGGER.warning("EU Data Act login rejected during reconfigure: %s", err)
-                errors["base"] = "invalid_auth"
+                errors["base"] = err.reason
             except EuDataActError as err:
                 _LOGGER.warning("EU Data Act could not connect during reconfigure: %s", err)
                 errors["base"] = "cannot_connect"
