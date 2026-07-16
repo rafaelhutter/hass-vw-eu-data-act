@@ -184,6 +184,18 @@ def _humanize_value(value: Any) -> Any:
     return body[:1].upper() + body[1:]
 
 
+# Numeric *state codes* (door/lock/access state) must stay discrete, not graph as
+# measurements (#12); state_of_charge/health are real gauges, so they're excluded.
+_DISCRETE_STATE_RE = re.compile(
+    r"(^|[._])(open|locked|safe)_state(?=[._]|$)|(^|[._])state_of_(?!charge|health)",
+    re.IGNORECASE,
+)
+
+
+def _is_discrete_state_key(key: str) -> bool:
+    return bool(_DISCRETE_STATE_RE.search(key))
+
+
 def _prettify(key: str) -> str:
     """Turn a raw EU Data Act dataFieldName into a readable label.
 
@@ -356,7 +368,7 @@ class VolkswagenConnectValueSensor(_Base):
             self._attr_state_class = meta["state_class"]
         if "icon" in meta:
             self._attr_icon = meta["icon"]
-        if not meta and self._is_numeric():
+        if not meta and self._is_numeric() and not _is_discrete_state_key(key):
             # Uncurated numeric fields would otherwise render as discrete
             # string states in HA (no graphs, no statistics) — see issue #12.
             self._attr_state_class = SensorStateClass.MEASUREMENT
