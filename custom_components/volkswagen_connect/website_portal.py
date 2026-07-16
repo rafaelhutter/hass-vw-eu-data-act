@@ -53,6 +53,20 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
 REFERER = PORTAL + "/de/besitzer-und-nutzer/myvolkswagen.html"
 
 
+# VW's 2026 "consent wall" interrupts the still-valid SSO with a consent/terms
+# screen; auto-accepting legal terms is fragile, so we tell the user to clear it.
+_CONSENT_HINT = (
+    "Volkswagen is asking you to re-accept a consent/permissions screen. "
+    "Open volkswagen.de in a browser, sign in, accept it, then reconfigure the "
+    "Volkswagen Connect integration (a reinstall won't help)."
+)
+
+
+def _is_consent_url(url: str) -> bool:
+    low = url.lower()
+    return "/consent" in low or "/terms-and-conditions" in low
+
+
 class WebsitePortalError(Exception):
     """Base error."""
 
@@ -193,6 +207,8 @@ class WebsitePortalClient:
         ) as r:
             page_url = str(r.url)
         if "/u/login" not in page_url:
+            if _is_consent_url(page_url):
+                raise WebsitePortalAuthError(_CONSENT_HINT)
             if (urlparse(page_url).hostname or "").endswith("volkswagen.de"):
                 return "ok"  # silent SSO
             raise WebsitePortalAuthError(f"unexpected authorize landing: {page_url}")
@@ -253,6 +269,10 @@ class WebsitePortalClient:
                 url = str(r.url)
         except aiohttp.ClientError as err:
             raise WebsitePortalError(f"refresh request failed: {err}") from err
+        # Consent/terms wall: checked before the generic re-auth hints so its
+        # actionable message wins (old-style consent also matches /signin-service).
+        if _is_consent_url(url):
+            raise WebsitePortalAuthError(_CONSENT_HINT)
         if "/u/login" in url or "/signin-service" in url:
             raise WebsitePortalAuthError("SSO session expired; full re-auth required")
         # A failed silent auth (prompt=none) can still bounce back to the portal
