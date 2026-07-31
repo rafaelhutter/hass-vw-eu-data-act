@@ -52,6 +52,10 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
 REFERER = PORTAL + "/de/besitzer-und-nutzer/myvolkswagen.html"
 
+# VW's silent SSO now chains two OAuth dances through Auth0 federation — well
+# past aiohttp's default cap of 10, which surfaced as "refresh request failed: 0".
+MAX_REDIRECTS = 30
+
 
 # VW's 2026 "consent wall" interrupts the still-valid SSO with a consent/terms
 # screen; auto-accepting legal terms is fragile, so we tell the user to clear it.
@@ -179,7 +183,7 @@ class WebsitePortalClient:
 
     # -- login --------------------------------------------------------------
 
-    async def _follow(self, start_url: str, max_hops: int = 15) -> str:
+    async def _follow(self, start_url: str, max_hops: int = MAX_REDIRECTS) -> str:
         """Follow redirects to the portal; raise _MfaRequired on the OTP page."""
         ref = start_url
         for _ in range(max_hops):
@@ -203,7 +207,10 @@ class WebsitePortalClient:
     async def begin_login(self) -> str:
         """Start login. Returns 'ok' (logged in) or 'otp_required'."""
         async with self._session.get(
-            AUTHPROXY_LOGIN, headers={"User-Agent": UA}, allow_redirects=True
+            AUTHPROXY_LOGIN,
+            headers={"User-Agent": UA},
+            allow_redirects=True,
+            max_redirects=MAX_REDIRECTS,
         ) as r:
             page_url = str(r.url)
         if "/u/login" not in page_url:
@@ -264,9 +271,22 @@ class WebsitePortalClient:
             )
         try:
             async with self._session.get(
-                AUTHPROXY_LOGIN, headers={"User-Agent": UA}, allow_redirects=True
+                AUTHPROXY_LOGIN,
+                headers={"User-Agent": UA},
+                allow_redirects=True,
+                max_redirects=MAX_REDIRECTS,
             ) as r:
                 url = str(r.url)
+        except aiohttp.TooManyRedirects as err:
+            # A genuine loop (not just a long chain). A consent hop in the
+            # history means the consent wall is bouncing us — tell the user.
+            chain = [str(r.url) for r in err.history]
+            if any(_is_consent_url(u) for u in chain):
+                raise WebsitePortalAuthError(_CONSENT_HINT) from err
+            raise WebsitePortalError(
+                f"redirect loop during silent refresh ({len(chain)} hops, "
+                f"last: {chain[-1] if chain else '?'})"
+            ) from err
         except aiohttp.ClientError as err:
             raise WebsitePortalError(f"refresh request failed: {err}") from err
         # Consent/terms wall: checked before the generic re-auth hints so its
