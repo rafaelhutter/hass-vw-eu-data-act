@@ -96,8 +96,9 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "battery_care_mode.charge_bcam_threshold": {"name": "Battery care threshold", "unit": PERCENTAGE, "icon": "mdi:battery-heart-variant"},
     "settings.target_soc": {"name": "Target SoC (setting)", "unit": PERCENTAGE, "icon": "mdi:battery-charging-high"},
     "outdoor_temperature": {"name": "Outdoor temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
-    "min_temperature": {"name": "Climate min temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
-    "max_temperature": {"name": "Climate max temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
+    # Per VW's Data Dictionary: coldest/warmest battery *module* temperature.
+    "min_temperature": {"name": "Battery module min temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
+    "max_temperature": {"name": "Battery module max temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
     "car_captured_time": {"name": "Car captured time", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-check"},
     "car_captured_utc_timestamp": {"name": "Car captured (UTC)", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-outline"},
     "instrument_cluster_time": {"name": "Instrument cluster time", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-outline"},
