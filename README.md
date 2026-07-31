@@ -49,9 +49,20 @@ for the vehicle once:
 During integration setup you log in with the same Volkswagen ID and approve an
 **email OTP**; the integration then reuses that website session.
 
+For the **rich EU Data Act telemetry** there is a second one-time step —
+enabling a **continuous data request** on VW's EU Data Act portal — see
+[EU Data Act — rich vehicle telemetry](#eu-data-act--rich-vehicle-telemetry).
+
 If VW later invalidates that session, Home Assistant shows a **Reauthentication
 required** prompt on the integration — re-enter your password (plus the email
 OTP) there and the data resumes. No need to remove and re-add anything.
+
+VW sometimes interrupts an otherwise-valid session with a **consent/permissions
+screen**; the integration detects this and tells you. Accept it once on
+**volkswagen.de** in a browser, then reconfigure the integration. Heads-up: some
+**ad-blockers hide that consent screen entirely** — if volkswagen.de looks
+normal but the integration still reports a consent wall, disable the ad-blocker
+and check again.
 
 ## Install
 
@@ -127,8 +138,11 @@ and fields that duplicate a volkswagen.de sensor are dropped automatically.
 
 1. Go to **https://eu-data-act.drivesomethinggreater.com**, log in with your
    Volkswagen ID, accept the consent screen, and link your vehicle.
-2. Enable a **continuous data request**: *Data clusters → Vehicle overview →
-   Get customised data → **All data**, frequency **15 minutes***.
+2. Enable a **continuous data request** — the option is easy to miss: open
+   *Data clusters → Vehicle overview → **Get customised data*** and pick
+   **All data** with frequency **15 minutes**.
+3. Be patient: VW often takes **several hours** before the first non-empty
+   delivery shows up (the request size on the portal stops reading *0k*).
 
 Until you do this, the **Data status** sensor reads `not_configured` and only the
 volkswagen.de sensors appear. Delivery depends on the car reporting in, so values
