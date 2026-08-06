@@ -347,6 +347,10 @@ class WebsitePortalClient:
         # Surface it so the coordinator prompts a reconfigure instead of quietly
         # returning empty data for every endpoint.
         if _retried and (auth_failed or login_redirect):
+            # VW's body names the failing precondition (e.g. consent) — see #20.
+            _LOGGER.debug(
+                "portal %s -> %s after refresh; body: %.300s", path, status, body
+            )
             raise WebsitePortalAuthError(
                 f"portal session rejected (HTTP {status}) after refresh; re-auth required"
             )
