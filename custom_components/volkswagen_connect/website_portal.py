@@ -122,6 +122,7 @@ class WebsitePortalClient:
         self._email = email
         self._password = password
         self._mfa: dict[str, Any] | None = None
+        self._gdc_cache: dict[str, str] = {}
 
     # -- cookie persistence -------------------------------------------------
 
@@ -376,11 +377,46 @@ class WebsitePortalClient:
         m = re.findall(r'"vin"\s*:\s*"([A-Z0-9]{17})"', body)
         return m[0] if m else None
 
+    async def _gdc_for(self, vin: str) -> str:
+        """Resolve the authproxy backend cluster ('gdc') this vehicle is routed to.
+
+        VW's own frontend picks this per vehicle rather than using one fixed
+        value - a hardcoded "myvw-wcar-prod" 412s (Precondition Failed) for
+        vehicles routed elsewhere, regardless of session validity. The
+        relation record names the real backend directly as
+        relation.vehicle.modBackend (e.g. "MBB_ODP" for a combustion Tiguan);
+        take the prefix before the underscore, lowercased, as the gdc value.
+        Cached per VIN - this doesn't change for the life of a session. Falls
+        back to "mbb" (the more common ICE backend) if the field is missing
+        or the shape changes, rather than blocking every data call.
+        """
+        if vin in self._gdc_cache:
+            return self._gdc_cache[vin]
+        gdc = "mbb"
+        try:
+            status, body = await self._get(
+                f"/app/authproxy/vw-de/proxy/v2/users/me/relations/{vin}"
+                "?resourceHost=myvw-vum-prod"
+            )
+            if status == 200:
+                mod_backend = (
+                    json.loads(body).get("relation", {}).get("vehicle", {}).get("modBackend")
+                    or ""
+                )
+                prefix = mod_backend.split("_", 1)[0]
+                if prefix:
+                    gdc = prefix.lower()
+        except (ValueError, WebsitePortalAuthError) as err:
+            _LOGGER.debug("Could not resolve gdc for %s, defaulting to %r: %s", vin, gdc, err)
+        self._gdc_cache[vin] = gdc
+        return gdc
+
     async def get_maintenance(self, vin: str) -> dict[str, Any]:
         """Returns mileage_km, inspectionDue_days/km, oilServiceDue_*, carCapturedTimestamp."""
+        gdc = await self._gdc_for(vin)
         status, body = await self._get(
             f"/app/authproxy/vw-de/proxy/vehicles/{vin}/maintenance/status"
-            "?gdc=myvw-mbb-prod&resourceHost=myvw-vcf-prod",
+            f"?gdc=myvw-{gdc}-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:
@@ -398,9 +434,10 @@ class WebsitePortalClient:
         charge_power, charge_rate, charge_time_remaining, charge_mode,
         plug_connection, plug_lock, external_power.
         """
+        gdc = await self._gdc_for(vin)
         status, body = await self._get(
             f"/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/charging/status"
-            "?gdc=myvw-wcar-prod&resourceHost=myvw-vcf-prod",
+            f"?gdc=myvw-{gdc}-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:
@@ -441,9 +478,10 @@ class WebsitePortalClient:
         warninglights/last returns the currently-active dashboard warning lights;
         an empty list means everything is OK (count 0).
         """
+        gdc = await self._gdc_for(vin)
         status, body = await self._get(
             f"/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/warninglights/last"
-            "?gdc=myvw-mbb-prod&resourceHost=myvw-vcf-prod",
+            f"?gdc=myvw-{gdc}-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:
@@ -467,9 +505,10 @@ class WebsitePortalClient:
         available signal. Keys: last_lock_action ("lock"/"unlock"),
         last_lock_action_time (ISO timestamp).
         """
+        gdc = await self._gdc_for(vin)
         status, body = await self._get(
             f"/app/authproxy/vw-de/proxy/vehicles/{vin}/transactionhistory"
-            "?gdc=myvw-mbb-prod&resourceHost=myvw-vcf-prod",
+            f"?gdc=myvw-{gdc}-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:
