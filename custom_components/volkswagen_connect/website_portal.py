@@ -277,6 +277,8 @@ class WebsitePortalClient:
                 max_redirects=MAX_REDIRECTS,
             ) as r:
                 url = str(r.url)
+                status = r.status
+                body = await r.text()
         except aiohttp.TooManyRedirects as err:
             # A genuine loop (not just a long chain). A consent hop in the
             # history means the consent wall is bouncing us — tell the user.
@@ -306,6 +308,15 @@ class WebsitePortalClient:
             )
         if not (urlparse(url).hostname or "").endswith("volkswagen.de"):
             raise WebsitePortalAuthError(f"refresh did not land on portal: {url}")
+        # Landing on a volkswagen.de URL is necessary but not sufficient: the
+        # chain can also terminate on a non-2xx error response (e.g. 412) that
+        # still resolves to a volkswagen.de host, which every check above would
+        # wave through as "ok" while the session is actually still dead.
+        if status != 200:
+            _LOGGER.debug("Portal refresh landed with HTTP %d: %s", status, body[:300])
+            raise WebsitePortalAuthError(
+                f"refresh landed on portal but HTTP {status}; re-auth required"
+            )
 
     # -- data ---------------------------------------------------------------
 
@@ -369,7 +380,7 @@ class WebsitePortalClient:
         """Returns mileage_km, inspectionDue_days/km, oilServiceDue_*, carCapturedTimestamp."""
         status, body = await self._get(
             f"/app/authproxy/vw-de/proxy/vehicles/{vin}/maintenance/status"
-            "?gdc=myvw-wcar-prod&resourceHost=myvw-vcf-prod",
+            "?gdc=myvw-mbb-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:
@@ -432,7 +443,7 @@ class WebsitePortalClient:
         """
         status, body = await self._get(
             f"/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/warninglights/last"
-            "?gdc=myvw-wcar-prod&resourceHost=myvw-vcf-prod",
+            "?gdc=myvw-mbb-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:
@@ -458,7 +469,7 @@ class WebsitePortalClient:
         """
         status, body = await self._get(
             f"/app/authproxy/vw-de/proxy/vehicles/{vin}/transactionhistory"
-            "?gdc=myvw-wcar-prod&resourceHost=myvw-vcf-prod",
+            "?gdc=myvw-mbb-prod&resourceHost=myvw-vcf-prod",
             accept="*/*",
         )
         if status != 200:

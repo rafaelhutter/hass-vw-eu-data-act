@@ -270,8 +270,16 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                 for raw, clean in _MAINTENANCE_MAP.items():
                     if maint.get(raw) is not None:
                         data.values[clean] = maint[raw]
-                # Live battery/charging telemetry (already clean keys).
-                data.values.update(await self.portal.get_charging(vin))
+                # Live battery/charging telemetry (already clean keys). Not every
+                # vehicle has a battery - a combustion car 412s here even with a
+                # perfectly valid session, so treat that as "no charging data"
+                # instead of tearing down the whole update as an auth failure.
+                try:
+                    data.values.update(await self.portal.get_charging(vin))
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No charging data for %s (likely not an EV): %s", vin, err
+                    )
                 # Vehicle-health warning lights + last lock/unlock command.
                 data.values.update(await self.portal.get_warning_lights(vin))
                 data.values.update(await self.portal.get_lock_history(vin))
