@@ -185,6 +185,9 @@ _SKIP_FIELDS = {
     "state",
     "value",
     "timestamp",
+    # API health-check artifact (observed value is the literal string "echo"),
+    # not vehicle telemetry.
+    "echo",
 }
 
 # Some documented signals ship with the generic placeholder dataFieldName
@@ -198,19 +201,28 @@ _KNOWN_DATA_KEYS = {
 }
 
 
+# 32-bit "unset" sentinel VW sends for a field it has no real reading for
+# (e.g. mileage on a car that hasn't reported it yet). Not a real distance -
+# dropping it to None avoids showing a nonsense multi-billion-km odometer.
+_UINT32_SENTINEL = 2**32 - 1
+
+
 def _coerce(value: Any) -> Any:
     """Turn obviously-numeric string values into int/float so they can graph.
 
-    Also unwraps the ``<n>s`` second-duration form VW uses (e.g. ``6900s``).
+    Also unwraps the ``<n>s`` second-duration form VW uses (e.g. ``6900s``)
+    and drops the 32-bit "unset" sentinel value (see ``_UINT32_SENTINEL``).
     """
     if isinstance(value, str):
         v = value.strip()
         if re.fullmatch(r"-?\d+", v):
-            return int(v)
-        if re.fullmatch(r"-?\d*\.\d+", v):
-            return float(v)
-        if re.fullmatch(r"\d+s", v):  # "6900s" -> 6900 (seconds)
-            return int(v[:-1])
+            value = int(v)
+        elif re.fullmatch(r"-?\d*\.\d+", v):
+            value = float(v)
+        elif re.fullmatch(r"\d+s", v):  # "6900s" -> 6900 (seconds)
+            value = int(v[:-1])
+    if isinstance(value, int) and not isinstance(value, bool) and value == _UINT32_SENTINEL:
+        return None
     return value
 
 
