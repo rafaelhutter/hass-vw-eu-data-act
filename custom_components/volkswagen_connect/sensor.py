@@ -82,6 +82,11 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "cruising_range_secondary_engine": {"name": "Range (secondary)", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:ev-station"},
     "fuel_level_current_level": {"name": "Fuel level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-station"},
     "fuel_level__accuracy": {"name": "Fuel level accuracy", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gauge", "category": EntityCategory.DIAGNOSTIC},
+    # oil_level_total_max (a 0-1 scale reference, not a liter capacity - the
+    # sibling vw_eu_data_act project labels it "L" but that doesn't match a
+    # real engine's oil capacity) is left uncurated; this is the meaningful
+    # percentage gauge.
+    "oil_level_actual_level": {"name": "Oil level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:oil-level"},
     "cng_gas_level": {"name": "CNG gas level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-cylinder"},
     "position_front_left_door_window_lifter": {"name": "Front left window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_front_right_door_window_lifter": {"name": "Front right window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
