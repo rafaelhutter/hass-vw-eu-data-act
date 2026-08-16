@@ -193,7 +193,11 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                     data.dataset = latest["dataset"]
                     data.created_on = latest["created_on"]
                     data.values = dict(latest["values"])
-                    data.captured_at = _best_captured_at(data.values)
+                    # Flat (pre-ID.x) payloads carry no dedicated capture-time
+                    # field; latest["captured_at"] (the per-record timestampUtc)
+                    # covers those. Dotted payloads without it fall back to
+                    # searching the extracted values for a named field.
+                    data.captured_at = latest.get("captured_at") or _best_captured_at(data.values)
             except EuDataActNotConfigured:
                 data.status = STATUS_NOT_CONFIGURED
             except EuDataActAuthError as err:

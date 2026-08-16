@@ -226,23 +226,34 @@ def _coerce(value: Any) -> Any:
     return value
 
 
-def _extract_values(raw: dict[str, Any]) -> dict[str, Any]:
-    """Turn an EU Data Act dataset into ``{dataFieldName: latest value}``.
+def _extract_values(raw: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    """Turn an EU Data Act dataset into ``{dataFieldName: latest value}``, plus
+    the newest ``timestampUtc`` seen across all records.
 
-    The payload's ``Data`` array is a flat list of ``{key, dataFieldName, value}``
-    records — typically several timestamped samples of the same field. We key by
-    ``dataFieldName`` (which is stable across the 15-min deliveries) and keep the
-    last value seen, so each signal maps to exactly one sensor that tracks its
-    most recent reading. Inner docs that don't use this shape fall back to a
-    generic flatten.
+    The payload's ``Data`` array is a flat list of ``{key, dataFieldName, value,
+    timestampUtc}`` records — typically several timestamped samples of the same
+    field. We key by ``dataFieldName`` (which is stable across the 15-min
+    deliveries) and keep the last value seen, so each signal maps to exactly
+    one sensor that tracks its most recent reading. Inner docs that don't use
+    this shape fall back to a generic flatten (no per-record timestamp then).
+
+    ``timestampUtc`` is the moment the car reported that record - on flat
+    (pre-ID.x) payloads it's the only capture-time signal available (there is
+    no dedicated ``car_captured_time`` field), and every record in a delivery
+    carries the same value, so the max across the batch is that delivery's
+    capture time.
     """
     out: dict[str, Any] = {}
+    latest_ts: str | None = None
     for doc in raw.values():
         records = (doc.get("Data") or doc.get("data")) if isinstance(doc, dict) else None
         if isinstance(records, list):
             for r in records:
                 if not isinstance(r, dict):
                     continue
+                ts = r.get("timestampUtc")
+                if isinstance(ts, str) and (latest_ts is None or ts > latest_ts):
+                    latest_ts = ts
                 name = r.get("dataFieldName") or r.get("datafieldname")
                 # Recover a documented signal whose placeholder name would
                 # otherwise be skipped, by resolving its stable key UUID.
@@ -257,7 +268,7 @@ def _extract_values(raw: dict[str, Any]) -> dict[str, Any]:
                 out[name] = _coerce(r.get("value"))
         elif isinstance(doc, (dict, list)):
             out.update(flatten(doc))
-    return out
+    return out, latest_ts
 
 
 class EuDataActClient:
@@ -449,8 +460,11 @@ class EuDataActClient:
     async def get_latest(self, vin: str, identifier: str | None = None) -> dict | None:
         """Convenience: newest content dataset for a VIN, parsed + flattened.
 
-        Returns {identifier, dataset, created_on, raw, values} or None when no
-        content has been delivered yet (e.g. car idle / request just activated).
+        Returns {identifier, dataset, created_on, raw, values, captured_at} or
+        None when no content has been delivered yet (e.g. car idle / request
+        just activated). ``captured_at`` is the newest per-record
+        ``timestampUtc`` in the dataset (see _extract_values) - None if the
+        payload didn't carry one.
         """
         if identifier is None:
             identifier = (await self.get_metadata(vin)).get("Identifier")
@@ -462,12 +476,14 @@ class EuDataActClient:
             return None
         newest = max(content, key=lambda d: str(d.get("createdOn") or d.get("name")))
         raw = await self.download_dataset(vin, identifier, newest["name"])
+        values, captured_at = _extract_values(raw)
         return {
             "identifier": identifier,
             "dataset": newest["name"],
             "created_on": newest.get("createdOn"),
             "raw": raw,
-            "values": _extract_values(raw),
+            "values": values,
+            "captured_at": captured_at,
         }
 
 
