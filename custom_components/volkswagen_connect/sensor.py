@@ -68,6 +68,17 @@ def _kelvin_to_celsius(value: Any) -> Any:
     return value
 
 
+def _tenths(value: Any) -> Any:
+    """VW sends trip-computer consumption in tenths (66 = 6.6 l/100km).
+
+    Only whole numbers are scaled; a value that already carries decimals is
+    one VW delivered pre-scaled and gets left alone.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return value
+    return round(value / 10, 1)
+
+
 # Friendly metadata for known (authproxy-derived) keys. Unknown keys still get
 # a generic sensor.
 KNOWN_KEYS: dict[str, dict[str, Any]] = {
@@ -85,6 +96,9 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "cruising_range_primary_engine": {"name": "Range (primary)", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-station"},
     "cruising_range_secondary_engine": {"name": "Range (secondary)", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:ev-station"},
     "fuel_level_current_level": {"name": "Fuel level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-station"},
+    # Trip-computer averages, reported in tenths (#12).
+    "long_term_data_average_fuel_consumption": {"name": "Average consumption (long term)", "unit": "L/100 km", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-station-outline", "transform": _tenths},
+    "short_term_data_average_fuel_consumption": {"name": "Average consumption (short term)", "unit": "L/100 km", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-station-outline", "transform": _tenths},
     "fuel_level__accuracy": {"name": "Fuel level accuracy", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gauge", "category": EntityCategory.DIAGNOSTIC},
     # oil_level_total_max (a 0-1 scale reference, not a liter capacity - the
     # sibling vw_eu_data_act project labels it "L" but that doesn't match a
