@@ -387,12 +387,13 @@ class WebsitePortalClient:
         relation.vehicle.modBackend (e.g. "MBB_ODP" for a combustion Tiguan);
         take the prefix before the underscore, lowercased, as the gdc value.
         Cached per VIN - this doesn't change for the life of a session. Falls
-        back to "mbb" (the more common ICE backend) if the field is missing
-        or the shape changes, rather than blocking every data call.
+        back to "wcar" (what every release up to 0.5.26 hardcoded, so a hiccup
+        here can't break the vehicles that already worked) if the field is
+        missing or the shape changes, rather than blocking every data call.
         """
         if vin in self._gdc_cache:
             return self._gdc_cache[vin]
-        gdc = "mbb"
+        gdc = "wcar"
         try:
             status, body = await self._get(
                 f"/app/authproxy/vw-de/proxy/v2/users/me/relations/{vin}"
@@ -406,8 +407,10 @@ class WebsitePortalClient:
                 prefix = mod_backend.split("_", 1)[0]
                 if prefix:
                     gdc = prefix.lower()
-        except (ValueError, WebsitePortalAuthError) as err:
+        except (ValueError, AttributeError, WebsitePortalAuthError) as err:
             _LOGGER.debug("Could not resolve gdc for %s, defaulting to %r: %s", vin, gdc, err)
+        # Names the cluster a 412 would be coming from — first thing to ask for.
+        _LOGGER.debug("Resolved gdc for %s: %s", vin, gdc)
         self._gdc_cache[vin] = gdc
         return gdc
 
