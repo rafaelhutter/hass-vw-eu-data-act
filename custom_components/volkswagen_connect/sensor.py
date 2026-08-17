@@ -52,16 +52,20 @@ MAX_VALUE_SENSORS_PER_VEHICLE = 100
 # every 15 min, so 30 min = the car hasn't reported in two cycles.
 STALE_AFTER_MINUTES = 30
 
-def _decikelvin_to_celsius(value: Any) -> Any:
-    """Convert VW's deci-Kelvin encoding (e.g. 2991 -> 25.9 °C) to Celsius.
+def _kelvin_to_celsius(value: Any) -> Any:
+    """Convert VW's scaled-Kelvin encoding to Celsius, whatever the scale.
 
-    Confirmed against the equivalent transform in the sibling vw_eu_data_act
-    integration (also installed on this system, pulling the same EU Data Act
-    feed): outside_temperature is reported in tenths of a Kelvin.
+    outside_temperature is Kelvin shifted by a power of ten, but not always the
+    same one: 2991 (deci-Kelvin, #23) and 2.961 (#22) were both reported for
+    this signal. Pick the scale that lands in 200-400 K, else pass it through.
     """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         return value
-    return round(value / 10 - 273.15, 1)
+    for scale in (1, 0.1, 100, 10, 0.01, 1000):
+        kelvin = value * scale
+        if 200 <= kelvin < 400:
+            return round(kelvin - 273.15, 1)
+    return value
 
 
 # Friendly metadata for known (authproxy-derived) keys. Unknown keys still get
@@ -128,8 +132,8 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "battery_care_mode.charge_bcam_threshold": {"name": "Battery care threshold", "unit": PERCENTAGE, "icon": "mdi:battery-heart-variant", "category": EntityCategory.DIAGNOSTIC},
     "settings.target_soc": {"name": "Target SoC (setting)", "unit": PERCENTAGE, "icon": "mdi:battery-charging-high", "category": EntityCategory.DIAGNOSTIC},
     "outdoor_temperature": {"name": "Outdoor temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT},
-    # Flat (pre-ID.x) equivalent of "outdoor_temperature", reported in deci-Kelvin.
-    "outside_temperature": {"name": "Outside temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT, "transform": _decikelvin_to_celsius},
+    # Flat (pre-ID.x) equivalent of "outdoor_temperature", reported in Kelvin.
+    "outside_temperature": {"name": "Outside temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT, "transform": _kelvin_to_celsius},
     # Per VW's Data Dictionary: coldest/warmest battery *module* temperature.
     "min_temperature": {"name": "Battery module min temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT, "category": EntityCategory.DIAGNOSTIC},
     "max_temperature": {"name": "Battery module max temperature", "device_class": SensorDeviceClass.TEMPERATURE, "unit": UnitOfTemperature.CELSIUS, "state_class": SensorStateClass.MEASUREMENT, "category": EntityCategory.DIAGNOSTIC},
