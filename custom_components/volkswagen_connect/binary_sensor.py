@@ -118,15 +118,24 @@ def _decode_state_code(value: Any) -> bool | None:
 
 
 def _decode_onoff(value: Any) -> bool | None:
-    """0/1 int -> off/on (e.g. parking_brake)."""
+    """0/1 int -> off/on (e.g. parking_brake).
+
+    ID.x cars send this signal as a plain true/false instead, so fall back to
+    the boolean reading rather than dropping the sensor to unavailable.
+    """
     iv = _as_int(value)
-    return None if iv is None else bool(iv)
+    return _as_bool(value) if iv is None else bool(iv)
 
 
 def _decode_lights(value: Any) -> bool | None:
-    """0/1 = unsupported/invalid (-> unknown); 2 = off; 3/4/5 = on."""
+    """0/1 = unsupported/invalid (-> unknown); 2 = off; 3/4/5 = on.
+
+    Same true/false fallback as _decode_onoff for the ID.x payloads.
+    """
     iv = _as_int(value)
-    if iv is None or iv in (0, 1):
+    if iv is None:
+        return _as_bool(value)
+    if iv in (0, 1):
         return None
     return iv in (3, 4, 5)
 
