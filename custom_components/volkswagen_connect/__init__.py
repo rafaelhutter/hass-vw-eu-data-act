@@ -20,6 +20,7 @@ PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.CALENDAR,
+    Platform.DEVICE_TRACKER,
 ]
 
 

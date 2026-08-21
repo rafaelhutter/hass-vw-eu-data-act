@@ -507,6 +507,49 @@ class WebsitePortalClient:
             return {}
         return {"warning_lights": len(lights)}
 
+    async def get_parking_position(self, vin: str) -> dict[str, Any]:
+        """Last-parked GPS position, if the authproxy exposes it for this account.
+
+        EXPERIMENTAL: the myvolkswagen.de website itself has no "find my car"
+        map, so this proxy path may not be allow-listed at all for most
+        accounts - a 403/412 here (raised by _get() as WebsitePortalAuthError,
+        same as get_charging()'s "not every vehicle has a battery" case) just
+        means "no GPS for this account". The caller must catch that the same
+        way it already does for get_charging().
+
+        Keys: latitude, longitude, position_captured_at (ISO timestamp, if
+        present). A reported (0, 0) - VW's null-position sentinel - is
+        dropped, not passed through as a real fix.
+        """
+        gdc = await self._gdc_for(vin)
+        status, body = await self._get(
+            f"/app/authproxy/vwag-weconnect/proxy/vehicles/{vin}/parkingposition"
+            f"?gdc=myvw-{gdc}-prod&resourceHost=myvw-vcf-prod",
+            accept="*/*",
+        )
+        if status != 200:
+            _LOGGER.debug("portal parkingposition %s -> %s", vin, status)
+            return {}
+        try:
+            data = json.loads(body)
+        except ValueError:
+            return {}
+        node = data.get("data") if isinstance(data, dict) else None
+        if not isinstance(node, dict):
+            node = data if isinstance(data, dict) else {}
+        lat, lon = node.get("lat"), node.get("lon")
+        numeric = (
+            isinstance(lat, (int, float)) and not isinstance(lat, bool)
+            and isinstance(lon, (int, float)) and not isinstance(lon, bool)
+        )
+        if not numeric or (lat == 0 and lon == 0):
+            return {}
+        out: dict[str, Any] = {"latitude": float(lat), "longitude": float(lon)}
+        ts = node.get("carCapturedTimestamp")
+        if isinstance(ts, str) and ts:
+            out["position_captured_at"] = ts
+        return out
+
     async def get_lock_history(self, vin: str) -> dict[str, Any]:
         """Last *confirmed* remote lock/unlock command from the transaction log.
 

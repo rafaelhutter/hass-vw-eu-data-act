@@ -81,6 +81,11 @@ class VehicleData:
     image_urls: dict[str, str] = field(default_factory=dict)
     primary_image_view: str | None = None
     portal_ok: bool = False
+    # GPS - only populated if the authproxy actually exposes it (see
+    # website_portal.get_parking_position; unconfirmed for most accounts).
+    latitude: float | None = None
+    longitude: float | None = None
+    position_captured_at: str | None = None
 
 
 type VolkswagenConnectConfigEntry = ConfigEntry["VolkswagenConnectCoordinator"]
@@ -334,6 +339,20 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                 # Vehicle-health warning lights + last lock/unlock command.
                 data.values.update(await self.portal.get_warning_lights(vin))
                 data.values.update(await self.portal.get_lock_history(vin))
+                # GPS position - experimental, most accounts likely 403/412 here
+                # (see get_parking_position's docstring); same non-fatal-degrade
+                # treatment as the charging 412 above, not an auth failure.
+                try:
+                    position = await self.portal.get_parking_position(vin)
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No GPS position for %s (proxy likely doesn't expose it): %s",
+                        vin, err,
+                    )
+                    position = {}
+                data.latitude = position.get("latitude")
+                data.longitude = position.get("longitude")
+                data.position_captured_at = position.get("position_captured_at")
                 # Exterior images (public CDN URLs, served by the image platform).
                 # All views in one call; a side/profile shot is the primary "Image".
                 data.image_urls = await self.portal.get_vehicle_images(vin)
