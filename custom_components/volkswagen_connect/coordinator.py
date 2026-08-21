@@ -105,13 +105,23 @@ _MAINTENANCE_MAP = {
 # raw EU Data Act duplicate is dropped. Only applied when the portal value is
 # actually present, so nothing disappears if the portal is unavailable.
 _PORTAL_DUPLICATES = {
-    "odometer": ("mileage.value",),
+    # Both the dotted (ID.x) and flat (pre-ID.x) EU Data Act mileage keys
+    # duplicate the portal's "odometer" - this Tiguan sends the flat one.
+    "odometer": ("mileage.value", "mileage"),
     "soc": ("battery_level_HV.value", "battery_state_report.soc"),
     "charge_power": ("battery_state_report.charge_power",),
     "charge_rate": ("battery_state_report.charge_rate",),
     "charging_state": ("charging_state_report.current_charge_state",),
     "charge_mode": ("charging_state_report.charge_mode",),
     "charge_time_remaining": ("battery_state_report.remaining_charging_time_complete",),
+    # EU Data Act's own raw maintenance-due fields duplicate _MAINTENANCE_MAP's
+    # portal-sourced values (confirmed live: same magnitude, opposite sign,
+    # no unit - entity id sensor.garage_tiguan_maintenance_interval_distance_
+    # until_inspection).
+    "inspection_due_km": ("maintenance_interval_distance_until_inspection",),
+    "inspection_due_days": ("maintenance_interval_time_until_inspection",),
+    "oil_service_due_km": ("maintenance_interval_distance_until_oil_change",),
+    "oil_service_due_days": ("maintenance_interval_time_until_oil_change",),
 }
 
 # EU Data Act fields carrying the moment the car *captured* the data (as opposed

@@ -293,6 +293,14 @@ def _extract_values(raw: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
                 out[name] = _coerce(r.get("value"))
         elif isinstance(doc, (dict, list)):
             out.update(flatten(doc))
+    # flatten()'s generic fallback (used for docs that aren't shaped as the
+    # expected records list) has no notion of _SKIP_FIELDS, so an envelope
+    # field like "echo" can leak through under a dotted path (e.g.
+    # "some.prefix.echo") instead of the bare name the per-record loop above
+    # already filters. Catch that here, matched on the final path segment.
+    for key in list(out):
+        if key.rsplit(".", 1)[-1] in _SKIP_FIELDS:
+            del out[key]
     return out, latest_ts
 
 
