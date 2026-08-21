@@ -32,7 +32,7 @@ from .const import (
     STATUS_NOT_CONFIGURED,
     STATUS_OK,
 )
-from . import exceptions
+from . import exceptions, repairs
 from .eu_data_act import (
     DEFAULT_BRAND,
     EuDataActAuthError,
@@ -174,6 +174,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             vehicles = await self.client.list_vehicles()
         except EuDataActAuthError as err:
             _log_auth_classification(err)
+            repairs.raise_issue_auth_required(self.hass, self.entry.entry_id, err.reason)
             raise ConfigEntryAuthFailed(str(err)) from err
         except EuDataActError as err:
             # The EU Data Act backend is flaky; with a portal session available
@@ -215,6 +216,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                 data.status = STATUS_NOT_CONFIGURED
             except EuDataActAuthError as err:
                 _log_auth_classification(err)
+                repairs.raise_issue_auth_required(self.hass, self.entry.entry_id, err.reason)
                 raise ConfigEntryAuthFailed(str(err)) from err
             except EuDataActError as err:
                 _LOGGER.warning("EU Data Act: %s update failed: %s", vin, err)
@@ -222,6 +224,9 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
 
         if self.portal is not None:
             await self._merge_portal(result)
+        # Reached only if nothing above raised ConfigEntryAuthFailed - clear any
+        # stale auth Repair issue from a previous cycle.
+        repairs.clear_auth_issues(self.hass, self.entry.entry_id)
         return result
 
     def _persist_portal_cookies(self) -> None:
@@ -333,6 +338,9 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             # Surface it as a proper reauth: HA shows a "Reauthentication
             # required" repair instead of entities silently going stale (#13).
             _log_auth_classification(auth_failed)
+            repairs.raise_issue_auth_required(
+                self.hass, self.entry.entry_id, auth_failed.reason or "invalid_auth"
+            )
             raise ConfigEntryAuthFailed(
                 f"Volkswagen session expired ({auth_failed}); please log in again"
             ) from auth_failed

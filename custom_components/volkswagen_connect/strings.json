@@ -74,5 +74,31 @@
         }
       }
     }
+  },
+  "issues": {
+    "invalid_auth": {
+      "title": "Volkswagen login failed",
+      "description": "The stored email or password is no longer accepted by Volkswagen. Click Repair to log in again."
+    },
+    "account_locked": {
+      "title": "Volkswagen account locked",
+      "description": "Your Volkswagen account looks locked or disabled. Sign in at volkswagen.de to sort it out, then click Repair to log in again."
+    },
+    "throttled": {
+      "title": "Too many Volkswagen sign-in attempts",
+      "description": "Volkswagen has temporarily blocked logins for this account. Wait about 30 minutes, then click Repair to log in again."
+    },
+    "not_authorised": {
+      "title": "Volkswagen data portal not set up yet",
+      "description": "This account isn't set up on the EU Data Act portal yet. Open the portal (see Learn more), sign in, accept the consent screen, link your car and turn on a continuous 15-minute data request. Then click Repair to confirm."
+    },
+    "cannot_connect": {
+      "title": "Could not connect to Volkswagen",
+      "description": "The last attempt to reach Volkswagen's servers failed. This is usually temporary and clears on its own once the connection succeeds again."
+    },
+    "auth_failed": {
+      "title": "Volkswagen authentication failed",
+      "description": "Something went wrong logging in to Volkswagen. Click Repair to try again."
+    }
   }
 }
