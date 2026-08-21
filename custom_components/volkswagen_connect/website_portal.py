@@ -76,7 +76,16 @@ class WebsitePortalError(Exception):
 
 
 class WebsitePortalAuthError(WebsitePortalError):
-    """Login/refresh failed; full re-auth (incl. OTP) needed."""
+    """Login/refresh failed; full re-auth (incl. OTP) needed.
+
+    ``reason`` optionally classifies *why*, using the same vocabulary as
+    ``EuDataActAuthError.reason`` (see ``exceptions.classify``) - "" when the
+    call site doesn't know more than "auth failed".
+    """
+
+    def __init__(self, message: str, reason: str = "") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class _MfaRequired(Exception):
@@ -216,7 +225,7 @@ class WebsitePortalClient:
             page_url = str(r.url)
         if "/u/login" not in page_url:
             if _is_consent_url(page_url):
-                raise WebsitePortalAuthError(_CONSENT_HINT)
+                raise WebsitePortalAuthError(_CONSENT_HINT, reason="not_authorised")
             if (urlparse(page_url).hostname or "").endswith("volkswagen.de"):
                 return "ok"  # silent SSO
             raise WebsitePortalAuthError(f"unexpected authorize landing: {page_url}")
@@ -285,7 +294,7 @@ class WebsitePortalClient:
             # history means the consent wall is bouncing us — tell the user.
             chain = [str(r.url) for r in err.history]
             if any(_is_consent_url(u) for u in chain):
-                raise WebsitePortalAuthError(_CONSENT_HINT) from err
+                raise WebsitePortalAuthError(_CONSENT_HINT, reason="not_authorised") from err
             raise WebsitePortalError(
                 f"redirect loop during silent refresh ({len(chain)} hops, "
                 f"last: {chain[-1] if chain else '?'})"
@@ -295,7 +304,7 @@ class WebsitePortalClient:
         # Consent/terms wall: checked before the generic re-auth hints so its
         # actionable message wins (old-style consent also matches /signin-service).
         if _is_consent_url(url):
-            raise WebsitePortalAuthError(_CONSENT_HINT)
+            raise WebsitePortalAuthError(_CONSENT_HINT, reason="not_authorised")
         if "/u/login" in url or "/signin-service" in url:
             raise WebsitePortalAuthError("SSO session expired; full re-auth required")
         # A failed silent auth (prompt=none) can still bounce back to the portal

@@ -32,6 +32,7 @@ from .const import (
     STATUS_NOT_CONFIGURED,
     STATUS_OK,
 )
+from . import exceptions
 from .eu_data_act import (
     DEFAULT_BRAND,
     EuDataActAuthError,
@@ -131,6 +132,17 @@ def _best_captured_at(values: dict[str, Any]) -> str | None:
     return best.isoformat() if best else None
 
 
+def _log_auth_classification(err: EuDataActAuthError | WebsitePortalAuthError) -> None:
+    """Log the typed classification of an auth failure before it becomes a reauth.
+
+    Doesn't change behaviour today - every classification still surfaces as
+    ConfigEntryAuthFailed - but gives a Repairs flow (a future addition)
+    something precise to key off instead of a free-form message string.
+    """
+    kind = exceptions.classify(err.reason)
+    _LOGGER.info("Auth failure classified as %s: %s", kind.__name__, err)
+
+
 class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
     """Polls the website authproxy (and optionally the EU Data Act portal)."""
 
@@ -161,6 +173,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         try:
             vehicles = await self.client.list_vehicles()
         except EuDataActAuthError as err:
+            _log_auth_classification(err)
             raise ConfigEntryAuthFailed(str(err)) from err
         except EuDataActError as err:
             # The EU Data Act backend is flaky; with a portal session available
@@ -201,6 +214,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             except EuDataActNotConfigured:
                 data.status = STATUS_NOT_CONFIGURED
             except EuDataActAuthError as err:
+                _log_auth_classification(err)
                 raise ConfigEntryAuthFailed(str(err)) from err
             except EuDataActError as err:
                 _LOGGER.warning("EU Data Act: %s update failed: %s", vin, err)
@@ -318,6 +332,7 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         if auth_failed is not None:
             # Surface it as a proper reauth: HA shows a "Reauthentication
             # required" repair instead of entities silently going stale (#13).
+            _log_auth_classification(auth_failed)
             raise ConfigEntryAuthFailed(
                 f"Volkswagen session expired ({auth_failed}); please log in again"
             ) from auth_failed
