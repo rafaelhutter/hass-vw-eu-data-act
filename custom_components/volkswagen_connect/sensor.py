@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -179,6 +180,16 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
 }
 
 
+# "days until due" countdown fields (already exposed as plain-number sensors
+# via KNOWN_KEYS) that also get a companion absolute-date sensor - an actual
+# calendar date is easier to read at a glance than a day count, and mirrors
+# what other VW Group integrations expose for the same signal.
+_DUE_DATE_SOURCES: dict[str, tuple[str, str]] = {
+    "inspection_due_days": ("Inspection due date", "mdi:wrench-clock"),
+    "oil_service_due_days": ("Oil service due date", "mdi:oil"),
+}
+
+
 # Leading category prefixes on VW enum values, stripped before humanising so
 # CHARGE_STATE_NOT_READY_FOR_CHARGING -> "Not ready for charging". Longest /
 # most-specific first (CHARGE_MODE_SELECTION_ must beat CHARGE_MODE_).
@@ -280,6 +291,13 @@ async def async_setup_entry(
                 known.add(status_key)
                 new.append(VolkswagenConnectStatusSensor(coordinator, vin))
                 new.append(VolkswagenConnectCapturedSensor(coordinator, vin))
+            for source_key, (name, icon) in _DUE_DATE_SOURCES.items():
+                due_key = (vin, f"__due_date_{source_key}__")
+                if due_key not in known and source_key in vehicle.values:
+                    known.add(due_key)
+                    new.append(
+                        VolkswagenConnectDueDateSensor(coordinator, vin, source_key, name, icon)
+                    )
             for key in vehicle.values:
                 vk = (vin, key)
                 if vk in known or key in BINARY_KEYS:
@@ -401,6 +419,45 @@ class VolkswagenConnectCapturedSensor(_Base):
         if not v or not v.captured_at:
             return None
         return dt_util.parse_datetime(v.captured_at)
+
+
+class VolkswagenConnectDueDateSensor(_Base):
+    """Absolute calendar date derived from a "days until due" countdown.
+
+    inspection_due_days/oil_service_due_days are VW's well-known "days
+    remaining" counters (can go negative once overdue) - this turns that
+    into an actual date, easier to read at a glance than a raw day count.
+    """
+
+    _attr_device_class = SensorDeviceClass.DATE
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: VolkswagenConnectCoordinator,
+        vin: str,
+        source_key: str,
+        name: str,
+        icon: str,
+    ) -> None:
+        super().__init__(coordinator, vin)
+        self._source_key = source_key
+        self._attr_unique_id = f"{vin}_{source_key}_date"
+        self._attr_name = name
+        self._attr_icon = icon
+
+    @property
+    def native_value(self) -> StateType:
+        v = self._vehicle
+        if not v:
+            return None
+        days = v.values.get(self._source_key)
+        if days is None:
+            return None
+        try:
+            return dt_util.now().date() + timedelta(days=int(days))
+        except (TypeError, ValueError):
+            return None
 
 
 class VolkswagenConnectValueSensor(_Base):
