@@ -221,7 +221,8 @@ class VolkswagenConnectBinarySensor(
         self._invert = meta.get("invert", False)
         self._decode = _DECODERS[meta.get("encoding", "bool")]
         self._attr_unique_id = f"{vin}_{key}"
-        self._attr_name = meta["name"]
+        # Translation keys must be plain lowercase snake_case (no dots).
+        self._attr_translation_key = key.replace(".", "_").lower()
         if "device_class" in meta:
             self._attr_device_class = meta["device_class"]
         if "category" in meta:

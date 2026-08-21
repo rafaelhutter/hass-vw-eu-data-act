@@ -188,8 +188,8 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
 # calendar date is easier to read at a glance than a day count, and mirrors
 # what other VW Group integrations expose for the same signal.
 _DUE_DATE_SOURCES: dict[str, tuple[str, str]] = {
-    "inspection_due_days": ("Inspection due date", "mdi:wrench-clock"),
-    "oil_service_due_days": ("Oil service due date", "mdi:oil"),
+    "inspection_due_days": ("inspection_due_date", "mdi:wrench-clock"),
+    "oil_service_due_days": ("oil_service_due_date", "mdi:oil"),
 }
 
 
@@ -262,6 +262,18 @@ def _is_discrete_state_key(key: str) -> bool:
     return bool(_DISCRETE_STATE_RE.search(key))
 
 
+def _slug(key: str) -> str:
+    """Turn a raw dotted/underscored key into a valid HA translation_key.
+
+    Translation keys must be plain lowercase snake_case (no dots, no
+    uppercase) - "trunk.locked" becomes "trunk_locked",
+    "battery_level_HV.value" becomes "battery_level_hv_value". Collisions
+    aren't a concern: no two KNOWN_KEYS entries share the same
+    dot-stripped/lowercased form.
+    """
+    return key.replace(".", "_").lower()
+
+
 def _prettify(key: str) -> str:
     """Turn a raw EU Data Act dataFieldName into a readable label.
 
@@ -294,12 +306,14 @@ async def async_setup_entry(
                 known.add(status_key)
                 new.append(VolkswagenConnectStatusSensor(coordinator, vin))
                 new.append(VolkswagenConnectCapturedSensor(coordinator, vin))
-            for source_key, (name, icon) in _DUE_DATE_SOURCES.items():
+            for source_key, (translation_key, icon) in _DUE_DATE_SOURCES.items():
                 due_key = (vin, f"__due_date_{source_key}__")
                 if due_key not in known and source_key in vehicle.values:
                     known.add(due_key)
                     new.append(
-                        VolkswagenConnectDueDateSensor(coordinator, vin, source_key, name, icon)
+                        VolkswagenConnectDueDateSensor(
+                            coordinator, vin, source_key, translation_key, icon
+                        )
                     )
             for key in vehicle.values:
                 vk = (vin, key)
@@ -413,7 +427,7 @@ class VolkswagenConnectCapturedSensor(_Base):
 
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_icon = "mdi:car-clock"
-    _attr_name = "Data captured"
+    _attr_translation_key = "data_captured"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: VolkswagenConnectCoordinator, vin: str) -> None:
@@ -444,13 +458,13 @@ class VolkswagenConnectDueDateSensor(_Base):
         coordinator: VolkswagenConnectCoordinator,
         vin: str,
         source_key: str,
-        name: str,
+        translation_key: str,
         icon: str,
     ) -> None:
         super().__init__(coordinator, vin)
         self._source_key = source_key
         self._attr_unique_id = f"{vin}_{source_key}_date"
-        self._attr_name = name
+        self._attr_translation_key = translation_key
         self._attr_icon = icon
 
     @property
@@ -476,7 +490,13 @@ class VolkswagenConnectValueSensor(_Base):
         self._attr_unique_id = f"{vin}_{key}"
         meta = KNOWN_KEYS.get(key, {})
         self._transform = meta.get("transform")
-        self._attr_name = meta.get("name") or _prettify(key)
+        if meta:
+            # Curated field: translatable name (see translations/*.json).
+            self._attr_translation_key = _slug(key)
+        else:
+            # Uncurated: no documented meaning to translate, keep the raw
+            # prettified field name as a literal.
+            self._attr_name = _prettify(key)
         if "device_class" in meta:
             self._attr_device_class = meta["device_class"]
         if "unit" in meta:

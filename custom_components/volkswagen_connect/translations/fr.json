@@ -69,6 +69,387 @@
           "no_data": "Pas encore de données",
           "not_configured": "Aucune requête de données configurée"
         }
+      },
+      "odometer": {
+        "name": "Kilométrage"
+      },
+      "mileage": {
+        "name": "Kilométrage"
+      },
+      "cruising_range_combined": {
+        "name": "Autonomie (combinée)"
+      },
+      "cruising_range_primary_engine": {
+        "name": "Autonomie (principale)"
+      },
+      "cruising_range_secondary_engine": {
+        "name": "Autonomie (secondaire)"
+      },
+      "fuel_level_current_level": {
+        "name": "Niveau de carburant"
+      },
+      "long_term_data_average_fuel_consumption": {
+        "name": "Consommation moyenne (longue durée)"
+      },
+      "short_term_data_average_fuel_consumption": {
+        "name": "Consommation moyenne (courte durée)"
+      },
+      "fuel_level__accuracy": {
+        "name": "Précision du niveau de carburant"
+      },
+      "oil_level_actual_level": {
+        "name": "Niveau d'huile"
+      },
+      "cng_gas_level": {
+        "name": "Niveau de GNV"
+      },
+      "position_front_left_door_window_lifter": {
+        "name": "Position vitre avant gauche"
+      },
+      "position_front_right_door_window_lifter": {
+        "name": "Position vitre avant droite"
+      },
+      "position_rear_left_door_window_lifter": {
+        "name": "Position vitre arrière gauche"
+      },
+      "position_rear_right_door_window_lifter": {
+        "name": "Position vitre arrière droite"
+      },
+      "position_sunroof_motor_hood_1": {
+        "name": "Position du toit ouvrant"
+      },
+      "inspection_due_days": {
+        "name": "Révision dans"
+      },
+      "inspection_due_km": {
+        "name": "Prochaine révision"
+      },
+      "oil_service_due_days": {
+        "name": "Vidange dans"
+      },
+      "oil_service_due_km": {
+        "name": "Prochaine vidange"
+      },
+      "last_report": {
+        "name": "Dernier rapport du véhicule"
+      },
+      "warning_lights": {
+        "name": "Témoins d'alerte"
+      },
+      "last_lock_action": {
+        "name": "Dernière commande de verrouillage"
+      },
+      "last_lock_action_time": {
+        "name": "Heure de la dernière commande de verrouillage"
+      },
+      "soc": {
+        "name": "Batterie"
+      },
+      "electric_range": {
+        "name": "Autonomie électrique"
+      },
+      "target_soc": {
+        "name": "Batterie cible"
+      },
+      "battery_temp": {
+        "name": "Température de la batterie"
+      },
+      "charging_state": {
+        "name": "État de charge"
+      },
+      "charge_power": {
+        "name": "Puissance de charge"
+      },
+      "charge_rate": {
+        "name": "Vitesse de charge"
+      },
+      "charge_time_remaining": {
+        "name": "Temps de charge restant"
+      },
+      "charge_mode": {
+        "name": "Mode de charge"
+      },
+      "plug_connection": {
+        "name": "Prise"
+      },
+      "plug_lock": {
+        "name": "Verrouillage de la prise"
+      },
+      "external_power": {
+        "name": "Alimentation externe"
+      },
+      "mileage_value": {
+        "name": "Kilométrage"
+      },
+      "primary_range": {
+        "name": "Autonomie principale"
+      },
+      "battery_state_report_soc": {
+        "name": "État de charge de la batterie"
+      },
+      "battery_state_report_charge_power": {
+        "name": "Puissance de charge (rapport)"
+      },
+      "battery_state_report_charge_rate": {
+        "name": "Vitesse de charge (rapport)"
+      },
+      "battery_state_report_charge_energy": {
+        "name": "Énergie de charge"
+      },
+      "battery_care_mode_charge_bcam_threshold": {
+        "name": "Seuil de préservation de la batterie"
+      },
+      "settings_target_soc": {
+        "name": "SoC cible (réglage)"
+      },
+      "outdoor_temperature": {
+        "name": "Température extérieure"
+      },
+      "outside_temperature": {
+        "name": "Température extérieure"
+      },
+      "min_temperature": {
+        "name": "Température min. module batterie"
+      },
+      "max_temperature": {
+        "name": "Température max. module batterie"
+      },
+      "car_captured_time": {
+        "name": "Heure de capture du véhicule"
+      },
+      "car_captured_utc_timestamp": {
+        "name": "Capture du véhicule (UTC)"
+      },
+      "instrument_cluster_time": {
+        "name": "Heure du combiné d'instruments"
+      },
+      "profile_state_report_car_captured_time": {
+        "name": "Heure de capture (profil)"
+      },
+      "profile_state_report_instrument_cluster_time": {
+        "name": "Heure du combiné (profil)"
+      },
+      "profile_state_report_next_charging_timer_information_estimated_start_time": {
+        "name": "Début de charge estimé"
+      },
+      "profile_state_report_next_charging_timer_information_estimated_finish_time": {
+        "name": "Fin de charge estimée"
+      },
+      "battery_state_report_remaining_charging_time_complete": {
+        "name": "Temps de charge restant"
+      },
+      "remaining_climate_time": {
+        "name": "Temps de climatisation restant"
+      },
+      "locked": {
+        "name": "Verrouillé"
+      },
+      "open": {
+        "name": "Ouvert"
+      },
+      "parking_light_left": {
+        "name": "Feu de stationnement gauche"
+      },
+      "parking_light_right": {
+        "name": "Feu de stationnement droit"
+      },
+      "window_heating_state": {
+        "name": "Dégivrage des vitres"
+      },
+      "additional_consumptions_residual_consumption": {
+        "name": "Consommation résiduelle"
+      },
+      "additional_consumptions_interior_climatization_consumption": {
+        "name": "Consommation de climatisation"
+      },
+      "slope_consumption_values_ascent_slope_consumption_physical_value": {
+        "name": "Consommation en montée"
+      },
+      "slope_consumption_values_descent_slope_consumption_physical_value": {
+        "name": "Consommation en descente"
+      },
+      "energy_contents_current_energy_content_physical_value": {
+        "name": "Contenu énergétique actuel"
+      },
+      "energy_contents_maximal_energy_content_physical_value": {
+        "name": "Contenu énergétique maximal"
+      },
+      "charging_state_report_charge_type": {
+        "name": "Type de charge"
+      },
+      "charging_state_report_charge_mode": {
+        "name": "Mode de charge (rapport)"
+      },
+      "charging_state_report_current_charge_state": {
+        "name": "État de charge (rapport)"
+      },
+      "settings_max_charge_current_ac": {
+        "name": "Courant de charge AC max"
+      },
+      "settings_charge_mode_selection": {
+        "name": "Sélection du mode de charge"
+      },
+      "data_captured": {
+        "name": "Données capturées"
+      },
+      "inspection_due_date": {
+        "name": "Date de révision"
+      },
+      "oil_service_due_date": {
+        "name": "Date de vidange"
+      },
+      "battery_level_hv_value": {
+        "name": "Niveau de batterie"
+      }
+    },
+    "binary_sensor": {
+      "locked": {
+        "name": "Verrouillage"
+      },
+      "open": {
+        "name": "Ouverture"
+      },
+      "trunk_locked": {
+        "name": "Verrouillage du coffre"
+      },
+      "trunk_open": {
+        "name": "Coffre"
+      },
+      "parking_brake": {
+        "name": "Frein de stationnement"
+      },
+      "parking_lights": {
+        "name": "Feux de stationnement"
+      },
+      "locked_state_front_left_door": {
+        "name": "Verrouillage porte avant gauche"
+      },
+      "locked_state_front_right_door": {
+        "name": "Verrouillage porte avant droite"
+      },
+      "locked_state__rear_left_door": {
+        "name": "Verrouillage porte arrière gauche"
+      },
+      "locked_state_rear_right_door": {
+        "name": "Verrouillage porte arrière droite"
+      },
+      "locked_state_tailgate": {
+        "name": "Verrouillage hayon"
+      },
+      "locked_state_front_engine_bonnet": {
+        "name": "Verrouillage capot"
+      },
+      "open_state_front_left_door": {
+        "name": "Porte avant gauche"
+      },
+      "open_state_front_right_door": {
+        "name": "Porte avant droite"
+      },
+      "open_state_rear_left_door": {
+        "name": "Porte arrière gauche"
+      },
+      "open_state_rear_right_door": {
+        "name": "Porte arrière droite"
+      },
+      "open_state_tailgate": {
+        "name": "Hayon"
+      },
+      "open_state_front_engine_bonnet": {
+        "name": "Capot"
+      },
+      "safe_state_front_left_door": {
+        "name": "Sécurité porte avant gauche"
+      },
+      "safe_state_front_right_door": {
+        "name": "Sécurité porte avant droite"
+      },
+      "safe_state_rear_left_door": {
+        "name": "Sécurité porte arrière gauche"
+      },
+      "safe_state_rear_right_door": {
+        "name": "Sécurité porte arrière droite"
+      },
+      "safe_state_tailgate": {
+        "name": "Sécurité hayon"
+      },
+      "safe_state_front_engine_bonnet": {
+        "name": "Sécurité capot"
+      },
+      "state_front_left_door_window_lifter": {
+        "name": "Vitre avant gauche"
+      },
+      "state_front_right_door_window_lifter": {
+        "name": "Vitre avant droite"
+      },
+      "state_rear_left_door_window_lifter": {
+        "name": "Vitre arrière gauche"
+      },
+      "state_rear_right_door_window_lifter": {
+        "name": "Vitre arrière droite"
+      },
+      "state_sunroof_motor_hood_1": {
+        "name": "Toit ouvrant"
+      },
+      "state_sunroof_motor_hood_3": {
+        "name": "Moteur toit ouvrant 3"
+      },
+      "state_of_hood": {
+        "name": "Capot"
+      },
+      "state_service_hatch": {
+        "name": "Trappe de service (carburant/charge)"
+      },
+      "state_spoiler": {
+        "name": "Aileron"
+      }
+    },
+    "button": {
+      "data_request_button": {
+        "name": "Activer la demande EU Data Act"
+      }
+    },
+    "number": {
+      "scan_interval": {
+        "name": "Intervalle d'interrogation"
+      }
+    },
+    "calendar": {
+      "service_due": {
+        "name": "Entretien à venir"
+      }
+    },
+    "device_tracker": {
+      "location": {
+        "name": "Position"
+      }
+    },
+    "image": {
+      "image": {
+        "name": "Image"
+      },
+      "image_view_front_left": {
+        "name": "Image (avant gauche)"
+      },
+      "image_view_front_center": {
+        "name": "Image (avant centre)"
+      },
+      "image_view_front_right": {
+        "name": "Image (avant droite)"
+      },
+      "image_view_back_left": {
+        "name": "Image (arrière gauche)"
+      },
+      "image_view_back_center": {
+        "name": "Image (arrière centre)"
+      },
+      "image_view_back_right": {
+        "name": "Image (arrière droite)"
+      },
+      "image_view_side_left": {
+        "name": "Image (côté gauche)"
+      },
+      "image_view_side_right": {
+        "name": "Image (côté droit)"
       }
     }
   }

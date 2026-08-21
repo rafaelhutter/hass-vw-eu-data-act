@@ -59,7 +59,7 @@ class VolkswagenConnectTracker(CoordinatorEntity[VolkswagenConnectCoordinator], 
     """Last-known parked position for one vehicle."""
 
     _attr_has_entity_name = True
-    _attr_name = "Location"
+    _attr_translation_key = "location"
     _attr_icon = "mdi:map-marker"
     _attr_source_type = SourceType.GPS
 

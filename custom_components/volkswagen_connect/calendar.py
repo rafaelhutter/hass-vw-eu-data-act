@@ -70,7 +70,7 @@ class VolkswagenConnectServiceCalendar(
     """Upcoming inspection/oil-service due dates for one vehicle."""
 
     _attr_has_entity_name = True
-    _attr_name = "Service due"
+    _attr_translation_key = "service_due"
     _attr_icon = "mdi:wrench-clock"
 
     def __init__(self, coordinator: VolkswagenConnectCoordinator, vin: str) -> None:

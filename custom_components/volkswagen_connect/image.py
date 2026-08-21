@@ -79,10 +79,14 @@ class VolkswagenConnectVehicleImage(CoordinatorEntity[VolkswagenConnectCoordinat
         self._view = view  # None = primary side-left view (legacy "Image" entity)
         if view is None:
             self._attr_unique_id = f"{vin}_image"
-            self._attr_name = "Image"
+            self._attr_translation_key = "image"
         else:
             self._attr_unique_id = f"{vin}_image_{view}"
-            self._attr_name = f"Image {view.replace('_', ' ')}"
+            # A per-view translation_key (not a placeholder) so each of the
+            # small closed set of views (front/back x left/center/right) gets
+            # a properly translated name instead of an English fragment
+            # spliced into a template.
+            self._attr_translation_key = f"image_view_{view}"
             self._attr_entity_registry_enabled_default = False
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._current_url: str | None = None

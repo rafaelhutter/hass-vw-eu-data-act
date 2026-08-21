@@ -68,7 +68,7 @@ class VolkswagenConnectDataRequestButton(
     """Create the EU Data Act continuous data request for this vehicle."""
 
     _attr_has_entity_name = True
-    _attr_name = "Enable EU Data Act request"
+    _attr_translation_key = "data_request_button"
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:database-plus"
 

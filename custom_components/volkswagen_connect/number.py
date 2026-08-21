@@ -38,7 +38,7 @@ class VolkswagenConnectScanIntervalNumber(NumberEntity):
     """How often (in minutes) the coordinator polls Volkswagen."""
 
     _attr_has_entity_name = True
-    _attr_name = "Poll interval"
+    _attr_translation_key = "scan_interval"
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:timer-cog-outline"
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
