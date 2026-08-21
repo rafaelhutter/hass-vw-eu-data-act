@@ -104,18 +104,21 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     # sibling vw_eu_data_act project labels it "L" but that doesn't match a
     # real engine's oil capacity) is left uncurated; this is the meaningful
     # percentage gauge.
-    "oil_level_actual_level": {"name": "Oil level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:oil-level"},
+    "oil_level_actual_level": {"name": "Oil level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:oil-level", "category": EntityCategory.DIAGNOSTIC},
     "cng_gas_level": {"name": "CNG gas level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-cylinder"},
     "position_front_left_door_window_lifter": {"name": "Front left window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_front_right_door_window_lifter": {"name": "Front right window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_rear_left_door_window_lifter": {"name": "Rear left window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_rear_right_door_window_lifter": {"name": "Rear right window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_sunroof_motor_hood_1": {"name": "Sunroof position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:car-convertible", "category": EntityCategory.DIAGNOSTIC},
-    "inspection_due_days": {"name": "Inspection due", "unit": UnitOfTime.DAYS, "icon": "mdi:wrench-clock"},
+    # Day-count is diagnostic (matches vag_connect's own "Entretien dans"/
+    # "Vidange dans"); the km-count stays primary (its "Prochain entretien"/
+    # "Prochaine vidange").
+    "inspection_due_days": {"name": "Inspection due", "unit": UnitOfTime.DAYS, "icon": "mdi:wrench-clock", "category": EntityCategory.DIAGNOSTIC},
     "inspection_due_km": {"name": "Inspection due", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS},
-    "oil_service_due_days": {"name": "Oil service due", "unit": UnitOfTime.DAYS, "icon": "mdi:oil"},
+    "oil_service_due_days": {"name": "Oil service due", "unit": UnitOfTime.DAYS, "icon": "mdi:oil", "category": EntityCategory.DIAGNOSTIC},
     "oil_service_due_km": {"name": "Oil service due", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS},
-    "last_report": {"name": "Last vehicle report", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-check"},
+    "last_report": {"name": "Last vehicle report", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-check", "category": EntityCategory.DIAGNOSTIC},
     # Vehicle health + lock history (from the authproxy)
     "warning_lights": {"name": "Warning lights", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:car-light-alert"},
     "last_lock_action": {"name": "Last lock command", "icon": "mdi:car-key", "category": EntityCategory.DIAGNOSTIC},
@@ -341,6 +344,9 @@ class VolkswagenConnectStatusSensor(_Base):
 
     _attr_icon = "mdi:database-sync"
     _attr_translation_key = "data_status"
+    # Integration/data-plumbing health, not a vehicle metric - same bucket as
+    # the timestamp sensors below.
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: VolkswagenConnectCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin)
@@ -390,6 +396,7 @@ class VolkswagenConnectCapturedSensor(_Base):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_icon = "mdi:car-clock"
     _attr_name = "Data captured"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: VolkswagenConnectCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin)
