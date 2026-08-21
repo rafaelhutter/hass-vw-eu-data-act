@@ -19,6 +19,7 @@ PLATFORMS: list[Platform] = [
     Platform.IMAGE,
     Platform.BUTTON,
     Platform.NUMBER,
+    Platform.CALENDAR,
 ]
 
 
