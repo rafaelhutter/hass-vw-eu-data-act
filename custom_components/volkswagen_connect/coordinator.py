@@ -25,6 +25,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_BRAND,
     CONF_EMAIL,
+    CONF_EU_DATA_ACT_COOKIES,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_WEBSITE_COOKIES,
@@ -161,6 +162,9 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             password=entry.data[CONF_PASSWORD],
             brand=entry.data.get(CONF_BRAND, DEFAULT_BRAND),
         )
+        eu_data_act_cookies = entry.data.get(CONF_EU_DATA_ACT_COOKIES)
+        if eu_data_act_cookies:
+            self.client.import_session(eu_data_act_cookies)
         # Website portal is optional: only active if we have a persisted session.
         self.portal: WebsitePortalClient | None = None
         cookies = entry.data.get(CONF_WEBSITE_COOKIES)
@@ -229,8 +233,10 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         if self.portal is not None:
             await self._merge_portal(result)
         # Reached only if nothing above raised ConfigEntryAuthFailed - clear any
-        # stale auth Repair issue from a previous cycle.
+        # stale auth Repair issue from a previous cycle, and persist the EU Data
+        # Act session so it survives a restart instead of re-logging-in every time.
         repairs.clear_auth_issues(self.hass, self.entry.entry_id)
+        self._persist_eu_data_act_cookies()
         return result
 
     def _persist_portal_cookies(self) -> None:
@@ -240,6 +246,24 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             self.entry,
             data={**self.entry.data, CONF_WEBSITE_COOKIES: self.portal.export_cookies()},
         )
+
+    def _persist_eu_data_act_cookies(self) -> None:
+        """Save the current EU Data Act session so it survives a restart.
+
+        Best-effort: called only once a cycle has already succeeded without
+        an auth failure, so there is never a dead session to accidentally
+        persist over a good one.
+        """
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_EU_DATA_ACT_COOKIES: self.client.export_session(),
+                },
+            )
+        except Exception as err:  # noqa: BLE001 - never block a successful cycle on this
+            _LOGGER.debug("Could not persist EU Data Act session: %s", err)
 
     async def async_refresh_session(self, *, force: bool = False) -> None:
         """Roll the website-portal session (best-effort) and persist it.

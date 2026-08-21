@@ -31,11 +31,13 @@ import re
 import secrets
 import zipfile
 from datetime import datetime, timedelta, timezone
+from http.cookies import SimpleCookie
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
+from yarl import URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -315,6 +317,45 @@ class EuDataActClient:
         self._country = country
         self._language = language
         self._logged_in = False
+
+    # -- session persistence -------------------------------------------------
+
+    def export_session(self) -> list[dict[str, str]]:
+        """Persist cookies as (domain, key, value) triples.
+
+        Same shape as WebsitePortalClient.export_cookies() (this client also
+        spans two hosts - the portal and identity.vwgroup.io during login -
+        so a bare key isn't unique either).
+        """
+        seen: dict[tuple[str, str], str] = {}
+        for cookie in self._session.cookie_jar:
+            domain = cookie["domain"] or ""
+            seen[(domain, cookie.key)] = cookie.value
+        return [{"domain": d, "key": k, "value": v} for (d, k), v in seen.items()]
+
+    def import_session(self, data: list[dict[str, str]]) -> None:
+        """Restore a previously exported session.
+
+        Optimistically marks the client as logged in - if the session turned
+        out to be dead, the existing 401/AEM-5xx retry-and-relogin logic in
+        _request() catches it on the very first real call, so trusting a
+        stale session here is safe, not a new failure mode.
+        """
+        restored = False
+        for c in data:
+            key = c.get("key")
+            domain = (c.get("domain") or "").strip()
+            if not key or not domain:
+                continue
+            sc: SimpleCookie = SimpleCookie()
+            sc[key] = c.get("value", "")
+            sc[key]["path"] = "/"
+            if domain.startswith("."):
+                sc[key]["domain"] = domain
+            self._session.cookie_jar.update_cookies(sc, URL(f"https://{domain.lstrip('.')}/"))
+            restored = True
+        if restored:
+            self._logged_in = True
 
     # -- auth ---------------------------------------------------------------
 

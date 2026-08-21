@@ -13,6 +13,9 @@ CONF_OTP = "otp"
 # Persisted website-portal session cookies (enables the optional authproxy
 # data source + silent refresh across restarts).
 CONF_WEBSITE_COOKIES = "website_cookies"
+# Persisted EU Data Act portal session cookies - without these, that client
+# re-logs-in (full password POST) on every HA restart.
+CONF_EU_DATA_ACT_COOKIES = "eu_data_act_cookies"
 # User-configurable poll interval, in minutes (config entry option). Falls
 # back to DEFAULT_SCAN_INTERVAL when unset.
 CONF_SCAN_INTERVAL = "scan_interval"
