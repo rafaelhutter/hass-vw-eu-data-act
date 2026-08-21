@@ -28,12 +28,16 @@ import io
 import json
 import logging
 import re
+import secrets
 import zipfile
+from datetime import datetime, timedelta, timezone
+from http.cookies import SimpleCookie
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
+from yarl import URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,9 +62,30 @@ DEFAULT_BRAND = "VOLKSWAGEN_PASSENGER_CARS"
 VEHICLES_PATH = "/proxy_api/consent/me/vehicles"
 RELATION_PATH = "/proxy_api/vum/v2/users/me/relations/{vin}"
 METADATA_PATH = "/proxy_api/euda-apim/datarequest/vehicles/{vin}/metadata/partial"
+CUSTOM_REQUEST_POST_PATH = "/proxy_api/euda-apim/datarequest/vehicles/{vin}/requests/partial"
 LIST_PATH = "/proxy_api/euda-apim/datadelivery/vehicles/{vin}/{identifier}/list"
 DOWNLOAD_PATH = "/proxy_api/euda-apim/datadelivery/vehicles/{vin}/{identifier}/download"
 NO_CONTENT_SUFFIX = "_no_content_found.zip"
+
+# The portal runs two independent auth layers on one host: /proxy_api/* (the
+# APIM reverse proxy our login authenticates against, used by every read
+# above) and /libs/granite/*, /services/*, /content/* (the AEM publish tier
+# the CSRF token needed for a *write* - creating a data request - lives on).
+# A session can be perfectly valid for reads and anonymous at this layer,
+# which shows up as HTTP 200 with an empty {} body; loading the portal page
+# once (as a browser does when the user opens it) can revive it.
+CSRF_TOKEN_PATH = "/libs/granite/csrf/token.json"
+AEM_SESSION_PAGE_PATH = "/de/en/user.html"
+
+# Canonical Data Clusters, spelled exactly as the portal UI sends them.
+DEFAULT_DATA_CLUSTERS = (
+    "All Data",
+    "Charging",
+    "Driving Behaviour",
+    "Maintenance Related Information",
+    "Parking Data",
+    "Vehicle Warning Lights",
+)
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -268,6 +293,14 @@ def _extract_values(raw: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
                 out[name] = _coerce(r.get("value"))
         elif isinstance(doc, (dict, list)):
             out.update(flatten(doc))
+    # flatten()'s generic fallback (used for docs that aren't shaped as the
+    # expected records list) has no notion of _SKIP_FIELDS, so an envelope
+    # field like "echo" can leak through under a dotted path (e.g.
+    # "some.prefix.echo") instead of the bare name the per-record loop above
+    # already filters. Catch that here, matched on the final path segment.
+    for key in list(out):
+        if key.rsplit(".", 1)[-1] in _SKIP_FIELDS:
+            del out[key]
     return out, latest_ts
 
 
@@ -292,6 +325,45 @@ class EuDataActClient:
         self._country = country
         self._language = language
         self._logged_in = False
+
+    # -- session persistence -------------------------------------------------
+
+    def export_session(self) -> list[dict[str, str]]:
+        """Persist cookies as (domain, key, value) triples.
+
+        Same shape as WebsitePortalClient.export_cookies() (this client also
+        spans two hosts - the portal and identity.vwgroup.io during login -
+        so a bare key isn't unique either).
+        """
+        seen: dict[tuple[str, str], str] = {}
+        for cookie in self._session.cookie_jar:
+            domain = cookie["domain"] or ""
+            seen[(domain, cookie.key)] = cookie.value
+        return [{"domain": d, "key": k, "value": v} for (d, k), v in seen.items()]
+
+    def import_session(self, data: list[dict[str, str]]) -> None:
+        """Restore a previously exported session.
+
+        Optimistically marks the client as logged in - if the session turned
+        out to be dead, the existing 401/AEM-5xx retry-and-relogin logic in
+        _request() catches it on the very first real call, so trusting a
+        stale session here is safe, not a new failure mode.
+        """
+        restored = False
+        for c in data:
+            key = c.get("key")
+            domain = (c.get("domain") or "").strip()
+            if not key or not domain:
+                continue
+            sc: SimpleCookie = SimpleCookie()
+            sc[key] = c.get("value", "")
+            sc[key]["path"] = "/"
+            if domain.startswith("."):
+                sc[key]["domain"] = domain
+            self._session.cookie_jar.update_cookies(sc, URL(f"https://{domain.lstrip('.')}/"))
+            restored = True
+        if restored:
+            self._logged_in = True
 
     # -- auth ---------------------------------------------------------------
 
@@ -427,6 +499,142 @@ class EuDataActClient:
         if isinstance(meta, list):
             meta = meta[0] if meta else {}
         return meta
+
+    async def _csrf_get(self) -> str | None:
+        try:
+            async with self._session.get(
+                BASE_URL + CSRF_TOKEN_PATH,
+                headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                data = await resp.json(content_type=None)
+        except (aiohttp.ClientError, TimeoutError, json.JSONDecodeError) as err:
+            _LOGGER.debug("EU Data Act CSRF fetch failed: %s", err)
+            return None
+        if isinstance(data, dict):
+            token = data.get("token") or data.get("csrfToken")
+            if isinstance(token, str) and token:
+                return token
+        return None
+
+    async def _fetch_csrf_token(self) -> str | None:
+        """CSRF token for the AEM layer, needed to POST a new data request."""
+        token = await self._csrf_get()
+        if token:
+            return token
+        try:
+            await self._session.get(
+                BASE_URL + AEM_SESSION_PAGE_PATH, headers={"User-Agent": USER_AGENT}
+            )
+        except aiohttp.ClientError as err:
+            _LOGGER.debug("EU Data Act AEM revive GET failed: %s", err)
+            return None
+        return await self._csrf_get()
+
+    async def create_data_request(
+        self,
+        vin: str,
+        *,
+        name: str = "Home Assistant",
+        data_clusters: tuple[str, ...] | None = None,
+    ) -> bool:
+        """Create the active 15-min Custom Data Request for ``vin``.
+
+        Should only be called after ``get_metadata`` raised
+        ``EuDataActNotConfigured`` - the portal allows at most one active
+        request per VIN and rejects a second concurrent one with 4xx.
+
+        Tries "No Expiry" first (what the portal's own UI sends), falling
+        back to a finite "One Month" window if that shape is rejected or
+        silently accepted-but-inert (a 2xx that doesn't show up on
+        readback) - asking for a shorter feed is far better than ending up
+        with no feed at all. Returns True once a request is confirmed
+        active via readback, False otherwise; raises EuDataActAuthError if
+        the session itself is gone.
+        """
+        await self._ensure_login()
+        csrf = await self._fetch_csrf_token()
+        if not csrf:
+            _LOGGER.debug("create_data_request: no CSRF token, aborting")
+            return False
+
+        identifier = secrets.token_hex(16)
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        clusters = list(data_clusters or DEFAULT_DATA_CLUSTERS)
+
+        def _body(duration: str, days: int | None) -> dict[str, Any]:
+            body: dict[str, Any] = {
+                "Name": name,
+                "Identifier": identifier,
+                "Frequency": "15mins",
+                "Duration": duration,
+                "StartDate": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "DataClusters": clusters,
+                "EmailFrequency": "No notification",
+                "LastNotificationDate": None,
+            }
+            if days is not None:
+                end = (now + timedelta(days=days)).replace(hour=23, minute=59, second=59)
+                body["EndDate"] = end.strftime("%Y-%m-%dT%H:%M:%SZ")
+            return body
+
+        attempts: list[tuple[str, int | None]] = [("No Expiry", None), ("One Month", 31)]
+        url = BASE_URL + CUSTOM_REQUEST_POST_PATH.format(vin=vin)
+        for index, (duration, days) in enumerate(attempts):
+            last = index == len(attempts) - 1
+            try:
+                async with self._session.post(
+                    url,
+                    json=_body(duration, days),
+                    headers={
+                        "User-Agent": USER_AGENT,
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "CSRF-Token": csrf,
+                    },
+                ) as resp:
+                    if resp.status == 401:
+                        raise EuDataActAuthError("requests/partial: session expired")
+                    if resp.status in (200, 201, 202):
+                        try:
+                            meta = await self.get_metadata(vin)
+                        except EuDataActNotConfigured:
+                            meta = {}
+                        if meta.get("Identifier"):
+                            _LOGGER.info(
+                                "EU Data Act data request created for %s (Duration=%s)",
+                                vin, duration,
+                            )
+                            return True
+                        if not last:
+                            _LOGGER.info(
+                                "create_data_request: Duration=%r returned %s but no "
+                                "active request appeared on readback - retrying with %r",
+                                duration, resp.status, attempts[index + 1][0],
+                            )
+                            continue
+                        _LOGGER.warning(
+                            "create_data_request: created (HTTP %s) but no active "
+                            "request appeared for %s", resp.status, vin,
+                        )
+                        return False
+                    text = await resp.text()
+                    if not last:
+                        _LOGGER.info(
+                            "create_data_request: portal rejected Duration=%r (HTTP %s), "
+                            "retrying with %r: %s",
+                            duration, resp.status, attempts[index + 1][0], text[:200],
+                        )
+                        continue
+                    _LOGGER.warning(
+                        "create_data_request HTTP %s for %s: %s", resp.status, vin, text[:300]
+                    )
+                    return False
+            except (aiohttp.ClientError, TimeoutError) as err:
+                _LOGGER.debug("create_data_request failed: %s", err)
+                return False
+        return False  # pragma: no cover - loop always returns above
 
     async def list_datasets(self, vin: str, identifier: str) -> list[dict]:
         data = await self._get_json(

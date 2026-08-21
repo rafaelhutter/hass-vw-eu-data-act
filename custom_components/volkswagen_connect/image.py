@@ -12,6 +12,7 @@ from __future__ import annotations
 from homeassistant.components.image import ImageEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
@@ -83,6 +84,7 @@ class VolkswagenConnectVehicleImage(CoordinatorEntity[VolkswagenConnectCoordinat
             self._attr_unique_id = f"{vin}_image_{view}"
             self._attr_name = f"Image {view.replace('_', ' ')}"
             self._attr_entity_registry_enabled_default = False
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._current_url: str | None = None
         url = self._url
         if url:

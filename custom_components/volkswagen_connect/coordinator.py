@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 import aiohttp
@@ -24,7 +25,9 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_BRAND,
     CONF_EMAIL,
+    CONF_EU_DATA_ACT_COOKIES,
     CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -32,6 +35,7 @@ from .const import (
     STATUS_NOT_CONFIGURED,
     STATUS_OK,
 )
+from . import exceptions, repairs
 from .eu_data_act import (
     DEFAULT_BRAND,
     EuDataActAuthError,
@@ -77,6 +81,11 @@ class VehicleData:
     image_urls: dict[str, str] = field(default_factory=dict)
     primary_image_view: str | None = None
     portal_ok: bool = False
+    # GPS - only populated if the authproxy actually exposes it (see
+    # website_portal.get_parking_position; unconfirmed for most accounts).
+    latitude: float | None = None
+    longitude: float | None = None
+    position_captured_at: str | None = None
 
 
 type VolkswagenConnectConfigEntry = ConfigEntry["VolkswagenConnectCoordinator"]
@@ -96,13 +105,23 @@ _MAINTENANCE_MAP = {
 # raw EU Data Act duplicate is dropped. Only applied when the portal value is
 # actually present, so nothing disappears if the portal is unavailable.
 _PORTAL_DUPLICATES = {
-    "odometer": ("mileage.value",),
+    # Both the dotted (ID.x) and flat (pre-ID.x) EU Data Act mileage keys
+    # duplicate the portal's "odometer" - this Tiguan sends the flat one.
+    "odometer": ("mileage.value", "mileage"),
     "soc": ("battery_level_HV.value", "battery_state_report.soc"),
     "charge_power": ("battery_state_report.charge_power",),
     "charge_rate": ("battery_state_report.charge_rate",),
     "charging_state": ("charging_state_report.current_charge_state",),
     "charge_mode": ("charging_state_report.charge_mode",),
     "charge_time_remaining": ("battery_state_report.remaining_charging_time_complete",),
+    # EU Data Act's own raw maintenance-due fields duplicate _MAINTENANCE_MAP's
+    # portal-sourced values (confirmed live: same magnitude, opposite sign,
+    # no unit - entity id sensor.garage_tiguan_maintenance_interval_distance_
+    # until_inspection).
+    "inspection_due_km": ("maintenance_interval_distance_until_inspection",),
+    "inspection_due_days": ("maintenance_interval_time_until_inspection",),
+    "oil_service_due_km": ("maintenance_interval_distance_until_oil_change",),
+    "oil_service_due_days": ("maintenance_interval_time_until_oil_change",),
 }
 
 # EU Data Act fields carrying the moment the car *captured* the data (as opposed
@@ -131,11 +150,24 @@ def _best_captured_at(values: dict[str, Any]) -> str | None:
     return best.isoformat() if best else None
 
 
+def _log_auth_classification(err: EuDataActAuthError | WebsitePortalAuthError) -> None:
+    """Log the typed classification of an auth failure before it becomes a reauth.
+
+    Doesn't change behaviour today - every classification still surfaces as
+    ConfigEntryAuthFailed - but gives a Repairs flow (a future addition)
+    something precise to key off instead of a free-form message string.
+    """
+    kind = exceptions.classify(err.reason)
+    _LOGGER.info("Auth failure classified as %s: %s", kind.__name__, err)
+
+
 class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
     """Polls the website authproxy (and optionally the EU Data Act portal)."""
 
     def __init__(self, hass: HomeAssistant, entry: VolkswagenConnectConfigEntry) -> None:
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=DEFAULT_SCAN_INTERVAL)
+        minutes = entry.options.get(CONF_SCAN_INTERVAL)
+        interval = timedelta(minutes=minutes) if minutes else DEFAULT_SCAN_INTERVAL
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=interval)
         self.entry = entry
         # Monotonic timestamp of the last portal session refresh (None = never).
         self._last_refresh: float | None = None
@@ -145,6 +177,9 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             password=entry.data[CONF_PASSWORD],
             brand=entry.data.get(CONF_BRAND, DEFAULT_BRAND),
         )
+        eu_data_act_cookies = entry.data.get(CONF_EU_DATA_ACT_COOKIES)
+        if eu_data_act_cookies:
+            self.client.import_session(eu_data_act_cookies)
         # Website portal is optional: only active if we have a persisted session.
         self.portal: WebsitePortalClient | None = None
         cookies = entry.data.get(CONF_WEBSITE_COOKIES)
@@ -161,6 +196,8 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         try:
             vehicles = await self.client.list_vehicles()
         except EuDataActAuthError as err:
+            _log_auth_classification(err)
+            repairs.raise_issue_auth_required(self.hass, self.entry.entry_id, err.reason)
             raise ConfigEntryAuthFailed(str(err)) from err
         except EuDataActError as err:
             # The EU Data Act backend is flaky; with a portal session available
@@ -201,6 +238,8 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             except EuDataActNotConfigured:
                 data.status = STATUS_NOT_CONFIGURED
             except EuDataActAuthError as err:
+                _log_auth_classification(err)
+                repairs.raise_issue_auth_required(self.hass, self.entry.entry_id, err.reason)
                 raise ConfigEntryAuthFailed(str(err)) from err
             except EuDataActError as err:
                 _LOGGER.warning("EU Data Act: %s update failed: %s", vin, err)
@@ -208,6 +247,11 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
 
         if self.portal is not None:
             await self._merge_portal(result)
+        # Reached only if nothing above raised ConfigEntryAuthFailed - clear any
+        # stale auth Repair issue from a previous cycle, and persist the EU Data
+        # Act session so it survives a restart instead of re-logging-in every time.
+        repairs.clear_auth_issues(self.hass, self.entry.entry_id)
+        self._persist_eu_data_act_cookies()
         return result
 
     def _persist_portal_cookies(self) -> None:
@@ -217,6 +261,24 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             self.entry,
             data={**self.entry.data, CONF_WEBSITE_COOKIES: self.portal.export_cookies()},
         )
+
+    def _persist_eu_data_act_cookies(self) -> None:
+        """Save the current EU Data Act session so it survives a restart.
+
+        Best-effort: called only once a cycle has already succeeded without
+        an auth failure, so there is never a dead session to accidentally
+        persist over a good one.
+        """
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    CONF_EU_DATA_ACT_COOKIES: self.client.export_session(),
+                },
+            )
+        except Exception as err:  # noqa: BLE001 - never block a successful cycle on this
+            _LOGGER.debug("Could not persist EU Data Act session: %s", err)
 
     async def async_refresh_session(self, *, force: bool = False) -> None:
         """Roll the website-portal session (best-effort) and persist it.
@@ -287,6 +349,20 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                 # Vehicle-health warning lights + last lock/unlock command.
                 data.values.update(await self.portal.get_warning_lights(vin))
                 data.values.update(await self.portal.get_lock_history(vin))
+                # GPS position - experimental, most accounts likely 403/412 here
+                # (see get_parking_position's docstring); same non-fatal-degrade
+                # treatment as the charging 412 above, not an auth failure.
+                try:
+                    position = await self.portal.get_parking_position(vin)
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No GPS position for %s (proxy likely doesn't expose it): %s",
+                        vin, err,
+                    )
+                    position = {}
+                data.latitude = position.get("latitude")
+                data.longitude = position.get("longitude")
+                data.position_captured_at = position.get("position_captured_at")
                 # Exterior images (public CDN URLs, served by the image platform).
                 # All views in one call; a side/profile shot is the primary "Image".
                 data.image_urls = await self.portal.get_vehicle_images(vin)
@@ -318,6 +394,10 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         if auth_failed is not None:
             # Surface it as a proper reauth: HA shows a "Reauthentication
             # required" repair instead of entities silently going stale (#13).
+            _log_auth_classification(auth_failed)
+            repairs.raise_issue_auth_required(
+                self.hass, self.entry.entry_id, auth_failed.reason or "invalid_auth"
+            )
             raise ConfigEntryAuthFailed(
                 f"Volkswagen session expired ({auth_failed}); please log in again"
             ) from auth_failed

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -104,18 +105,21 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     # sibling vw_eu_data_act project labels it "L" but that doesn't match a
     # real engine's oil capacity) is left uncurated; this is the meaningful
     # percentage gauge.
-    "oil_level_actual_level": {"name": "Oil level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:oil-level"},
+    "oil_level_actual_level": {"name": "Oil level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:oil-level", "category": EntityCategory.DIAGNOSTIC},
     "cng_gas_level": {"name": "CNG gas level", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:gas-cylinder"},
     "position_front_left_door_window_lifter": {"name": "Front left window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_front_right_door_window_lifter": {"name": "Front right window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_rear_left_door_window_lifter": {"name": "Rear left window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_rear_right_door_window_lifter": {"name": "Rear right window position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:window-open-variant", "category": EntityCategory.DIAGNOSTIC},
     "position_sunroof_motor_hood_1": {"name": "Sunroof position", "unit": PERCENTAGE, "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:car-convertible", "category": EntityCategory.DIAGNOSTIC},
-    "inspection_due_days": {"name": "Inspection due", "unit": UnitOfTime.DAYS, "icon": "mdi:wrench-clock"},
+    # Day-count is diagnostic (matches vag_connect's own "Entretien dans"/
+    # "Vidange dans"); the km-count stays primary (its "Prochain entretien"/
+    # "Prochaine vidange").
+    "inspection_due_days": {"name": "Inspection due", "unit": UnitOfTime.DAYS, "icon": "mdi:wrench-clock", "category": EntityCategory.DIAGNOSTIC},
     "inspection_due_km": {"name": "Inspection due", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS},
-    "oil_service_due_days": {"name": "Oil service due", "unit": UnitOfTime.DAYS, "icon": "mdi:oil"},
+    "oil_service_due_days": {"name": "Oil service due", "unit": UnitOfTime.DAYS, "icon": "mdi:oil", "category": EntityCategory.DIAGNOSTIC},
     "oil_service_due_km": {"name": "Oil service due", "device_class": SensorDeviceClass.DISTANCE, "unit": UnitOfLength.KILOMETERS},
-    "last_report": {"name": "Last vehicle report", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-check"},
+    "last_report": {"name": "Last vehicle report", "device_class": SensorDeviceClass.TIMESTAMP, "icon": "mdi:clock-check", "category": EntityCategory.DIAGNOSTIC},
     # Vehicle health + lock history (from the authproxy)
     "warning_lights": {"name": "Warning lights", "state_class": SensorStateClass.MEASUREMENT, "icon": "mdi:car-light-alert"},
     "last_lock_action": {"name": "Last lock command", "icon": "mdi:car-key", "category": EntityCategory.DIAGNOSTIC},
@@ -176,6 +180,16 @@ KNOWN_KEYS: dict[str, dict[str, Any]] = {
     "charging_state_report.current_charge_state": {"name": "Charge state (report)", "icon": "mdi:ev-station", "category": EntityCategory.DIAGNOSTIC},
     "settings.max_charge_current_ac": {"name": "Max AC charge current", "icon": "mdi:current-ac", "category": EntityCategory.DIAGNOSTIC},
     "settings.charge_mode_selection": {"name": "Charge mode selection", "icon": "mdi:cog-outline", "category": EntityCategory.DIAGNOSTIC},
+}
+
+
+# "days until due" countdown fields (already exposed as plain-number sensors
+# via KNOWN_KEYS) that also get a companion absolute-date sensor - an actual
+# calendar date is easier to read at a glance than a day count, and mirrors
+# what other VW Group integrations expose for the same signal.
+_DUE_DATE_SOURCES: dict[str, tuple[str, str]] = {
+    "inspection_due_days": ("Inspection due date", "mdi:wrench-clock"),
+    "oil_service_due_days": ("Oil service due date", "mdi:oil"),
 }
 
 
@@ -280,6 +294,13 @@ async def async_setup_entry(
                 known.add(status_key)
                 new.append(VolkswagenConnectStatusSensor(coordinator, vin))
                 new.append(VolkswagenConnectCapturedSensor(coordinator, vin))
+            for source_key, (name, icon) in _DUE_DATE_SOURCES.items():
+                due_key = (vin, f"__due_date_{source_key}__")
+                if due_key not in known and source_key in vehicle.values:
+                    known.add(due_key)
+                    new.append(
+                        VolkswagenConnectDueDateSensor(coordinator, vin, source_key, name, icon)
+                    )
             for key in vehicle.values:
                 vk = (vin, key)
                 if vk in known or key in BINARY_KEYS:
@@ -341,6 +362,9 @@ class VolkswagenConnectStatusSensor(_Base):
 
     _attr_icon = "mdi:database-sync"
     _attr_translation_key = "data_status"
+    # Integration/data-plumbing health, not a vehicle metric - same bucket as
+    # the timestamp sensors below.
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: VolkswagenConnectCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin)
@@ -390,6 +414,7 @@ class VolkswagenConnectCapturedSensor(_Base):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_icon = "mdi:car-clock"
     _attr_name = "Data captured"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: VolkswagenConnectCoordinator, vin: str) -> None:
         super().__init__(coordinator, vin)
@@ -401,6 +426,45 @@ class VolkswagenConnectCapturedSensor(_Base):
         if not v or not v.captured_at:
             return None
         return dt_util.parse_datetime(v.captured_at)
+
+
+class VolkswagenConnectDueDateSensor(_Base):
+    """Absolute calendar date derived from a "days until due" countdown.
+
+    inspection_due_days/oil_service_due_days are VW's well-known "days
+    remaining" counters (can go negative once overdue) - this turns that
+    into an actual date, easier to read at a glance than a raw day count.
+    """
+
+    _attr_device_class = SensorDeviceClass.DATE
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: VolkswagenConnectCoordinator,
+        vin: str,
+        source_key: str,
+        name: str,
+        icon: str,
+    ) -> None:
+        super().__init__(coordinator, vin)
+        self._source_key = source_key
+        self._attr_unique_id = f"{vin}_{source_key}_date"
+        self._attr_name = name
+        self._attr_icon = icon
+
+    @property
+    def native_value(self) -> StateType:
+        v = self._vehicle
+        if not v:
+            return None
+        days = v.values.get(self._source_key)
+        if days is None:
+            return None
+        try:
+            return dt_util.now().date() + timedelta(days=int(days))
+        except (TypeError, ValueError):
+            return None
 
 
 class VolkswagenConnectValueSensor(_Base):
