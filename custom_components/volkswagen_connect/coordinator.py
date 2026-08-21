@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
 import aiohttp
@@ -25,6 +26,7 @@ from .const import (
     CONF_BRAND,
     CONF_EMAIL,
     CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
     CONF_WEBSITE_COOKIES,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -147,7 +149,9 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
     """Polls the website authproxy (and optionally the EU Data Act portal)."""
 
     def __init__(self, hass: HomeAssistant, entry: VolkswagenConnectConfigEntry) -> None:
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=DEFAULT_SCAN_INTERVAL)
+        minutes = entry.options.get(CONF_SCAN_INTERVAL)
+        interval = timedelta(minutes=minutes) if minutes else DEFAULT_SCAN_INTERVAL
+        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=interval)
         self.entry = entry
         # Monotonic timestamp of the last portal session refresh (None = never).
         self._last_refresh: float | None = None

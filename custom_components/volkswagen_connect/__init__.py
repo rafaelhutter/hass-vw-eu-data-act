@@ -13,7 +13,13 @@ from .coordinator import VolkswagenConnectConfigEntry, VolkswagenConnectCoordina
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.IMAGE]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.IMAGE,
+    Platform.BUTTON,
+    Platform.NUMBER,
+]
 
 
 async def _migrate_binary_keys(
