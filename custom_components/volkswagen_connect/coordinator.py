@@ -270,7 +270,22 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                 if vin:
                     result[vin] = VehicleData(vin=vin, info={"vin": vin})
             for vin, data in result.items():
-                maint = await self.portal.get_maintenance(vin)
+                # Not every vehicle on a multi-vehicle account has an active
+                # We Connect connectivity license - one lacking it 403s (error
+                # 4007, "inactive connectivity license") on every one of these
+                # per-vehicle reads even with a perfectly valid session. Treat
+                # that as "no data for this vehicle" (same non-fatal-degrade
+                # pattern already used for get_charging() below on a
+                # combustion car), not an auth failure for the whole account -
+                # otherwise it takes down every other vehicle's data too (#25).
+                try:
+                    maint = await self.portal.get_maintenance(vin)
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No maintenance data for %s (inactive connectivity "
+                        "license?): %s", vin, err,
+                    )
+                    maint = {}
                 for raw, clean in _MAINTENANCE_MAP.items():
                     if maint.get(raw) is not None:
                         data.values[clean] = maint[raw]
@@ -285,8 +300,20 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                         "No charging data for %s (likely not an EV): %s", vin, err
                     )
                 # Vehicle-health warning lights + last lock/unlock command.
-                data.values.update(await self.portal.get_warning_lights(vin))
-                data.values.update(await self.portal.get_lock_history(vin))
+                try:
+                    data.values.update(await self.portal.get_warning_lights(vin))
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No warning-lights data for %s (inactive connectivity "
+                        "license?): %s", vin, err,
+                    )
+                try:
+                    data.values.update(await self.portal.get_lock_history(vin))
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No lock-history data for %s (inactive connectivity "
+                        "license?): %s", vin, err,
+                    )
                 # Exterior images (public CDN URLs, served by the image platform).
                 # All views in one call; a side/profile shot is the primary "Image".
                 data.image_urls = await self.portal.get_vehicle_images(vin)
