@@ -316,10 +316,24 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                     )
                 # Exterior images (public CDN URLs, served by the image platform).
                 # All views in one call; a side/profile shot is the primary "Image".
-                data.image_urls = await self.portal.get_vehicle_images(vin)
+                try:
+                    data.image_urls = await self.portal.get_vehicle_images(vin)
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No vehicle images for %s (inactive connectivity "
+                        "license?): %s", vin, err,
+                    )
+                    data.image_urls = {}
                 data.primary_image_view = _choose_primary_view(data.image_urls)
                 data.image_url = data.image_urls.get(data.primary_image_view or "")
-                info = await self.portal.get_vehicle_info(vin)
+                try:
+                    info = await self.portal.get_vehicle_info(vin)
+                except WebsitePortalAuthError as err:
+                    _LOGGER.debug(
+                        "No vehicle info for %s (inactive connectivity "
+                        "license?): %s", vin, err,
+                    )
+                    info = {}
                 for k in ("nickName", "nickname", "licensePlate", "modelName", "engine", "exteriorColor"):
                     if info.get(k) and not data.info.get(k):
                         data.info[k] = info[k]
