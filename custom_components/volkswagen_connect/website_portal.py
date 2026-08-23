@@ -12,8 +12,11 @@ Auth: the website client (`4fb52a96-…`) uses Auth0 universal login and trigger
         await client.submit_otp(code)        # code from the user's email
 The resulting session (cookies) is exportable for persistence; while the `auth0`
 SSO cookie is valid, `refresh()` re-establishes the short-lived portal session
-silently (no credentials, no OTP). When it expires, refresh() raises
-WebsitePortalAuthError -> the integration triggers HA reauth.
+silently (no credentials, no OTP). VW expires that SSO every few days anyway, so
+refresh() then falls back to a stored-credential login — the persisted MFA
+"remember this browser" cookie normally carries it through without a new OTP.
+Only when that also needs an OTP does refresh() raise WebsitePortalAuthError and
+the integration trigger HA reauth.
 
 Caller must pass an aiohttp.ClientSession with its OWN cookie jar.
 
@@ -28,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import uuid
 from http.cookies import SimpleCookie
 from typing import Any
@@ -56,6 +60,10 @@ REFERER = PORTAL + "/de/besitzer-und-nutzer/myvolkswagen.html"
 # past aiohttp's default cap of 10, which surfaced as "refresh request failed: 0".
 MAX_REDIRECTS = 30
 
+# Floor between credential re-logins, so a broken session can't hammer VW's
+# login (account-lockout risk). One poll cycle.
+RELOGIN_COOLDOWN_S = 900
+
 
 # VW's 2026 "consent wall" interrupts the still-valid SSO with a consent/terms
 # screen; auto-accepting legal terms is fragile, so we tell the user to clear it.
@@ -77,6 +85,10 @@ class WebsitePortalError(Exception):
 
 class WebsitePortalAuthError(WebsitePortalError):
     """Login/refresh failed; full re-auth (incl. OTP) needed."""
+
+
+class WebsitePortalConsentRequired(WebsitePortalAuthError):
+    """VW's consent wall — credentials cannot clear it, only the user can."""
 
 
 class _MfaRequired(Exception):
@@ -114,6 +126,24 @@ def _parse_form(html: str) -> tuple[dict[str, str], str | None]:
     return fields, action
 
 
+def _validate_landing(url: str) -> None:
+    """Raise unless an authorize chain terminated on a live portal session."""
+    if _is_consent_url(url):
+        raise WebsitePortalConsentRequired(_CONSENT_HINT)
+    if "/u/login" in url or "/signin-service" in url:
+        raise WebsitePortalAuthError("SSO session expired; full re-auth required")
+    # A failed silent auth (prompt=none) can still bounce back to the portal
+    # redirectUrl carrying ?error=login_required|consent_required, so the host
+    # check alone reads it as success.
+    sso_error = parse_qs(urlparse(url).query).get("error", [None])[0]
+    if sso_error:
+        raise WebsitePortalAuthError(
+            f"SSO silent refresh failed (error={sso_error}); re-auth required"
+        )
+    if not (urlparse(url).hostname or "").endswith("volkswagen.de"):
+        raise WebsitePortalAuthError(f"did not land on portal: {url}")
+
+
 class WebsitePortalClient:
     """Website-session (authproxy) client."""
 
@@ -123,6 +153,7 @@ class WebsitePortalClient:
         self._password = password
         self._mfa: dict[str, Any] | None = None
         self._gdc_cache: dict[str, str] = {}
+        self._last_relogin: float | None = None
 
     # -- cookie persistence -------------------------------------------------
 
@@ -215,11 +246,8 @@ class WebsitePortalClient:
         ) as r:
             page_url = str(r.url)
         if "/u/login" not in page_url:
-            if _is_consent_url(page_url):
-                raise WebsitePortalAuthError(_CONSENT_HINT)
-            if (urlparse(page_url).hostname or "").endswith("volkswagen.de"):
-                return "ok"  # silent SSO
-            raise WebsitePortalAuthError(f"unexpected authorize landing: {page_url}")
+            _validate_landing(page_url)
+            return "ok"  # silent SSO
         state = parse_qs(urlparse(page_url).query).get("state", [None])[0]
         async with self._session.post(
             f"{IDENTITY}/u/login?state={state}",
@@ -262,6 +290,36 @@ class WebsitePortalClient:
         return "ok"
 
     async def refresh(self) -> None:
+        """Re-establish the portal session; silent SSO first, credentials after.
+
+        VW's Auth0 SSO cookie dies on its own schedule every few days no matter
+        how often we roll it, which used to strand the integration until the
+        user did a manual OTP re-login. The persisted MFA "remember this
+        browser" cookie lets a plain email+password login back in without a new
+        OTP, so heal in place instead.
+        """
+        try:
+            await self._silent_refresh()
+            return
+        except WebsitePortalConsentRequired:
+            raise  # only the user can clear this; credentials won't
+        except WebsitePortalAuthError as err:
+            now = time.monotonic()
+            if (
+                self._last_relogin is not None
+                and now - self._last_relogin < RELOGIN_COOLDOWN_S
+            ):
+                raise
+            self._last_relogin = now
+            _LOGGER.info("Portal SSO gone (%s); re-logging in with stored credentials", err)
+            if await self.begin_login() != "ok":
+                self._mfa = None
+                raise WebsitePortalAuthError(
+                    "re-login needs a fresh email OTP; please reconfigure"
+                ) from err
+            _LOGGER.info("Portal session re-established without an OTP")
+
+    async def _silent_refresh(self) -> None:
         """Silently re-establish the portal session via the SSO cookie."""
         if _LOGGER.isEnabledFor(logging.DEBUG):
             present = sorted(
@@ -285,30 +343,14 @@ class WebsitePortalClient:
             # history means the consent wall is bouncing us — tell the user.
             chain = [str(r.url) for r in err.history]
             if any(_is_consent_url(u) for u in chain):
-                raise WebsitePortalAuthError(_CONSENT_HINT) from err
+                raise WebsitePortalConsentRequired(_CONSENT_HINT) from err
             raise WebsitePortalError(
                 f"redirect loop during silent refresh ({len(chain)} hops, "
                 f"last: {chain[-1] if chain else '?'})"
             ) from err
         except aiohttp.ClientError as err:
             raise WebsitePortalError(f"refresh request failed: {err}") from err
-        # Consent/terms wall: checked before the generic re-auth hints so its
-        # actionable message wins (old-style consent also matches /signin-service).
-        if _is_consent_url(url):
-            raise WebsitePortalAuthError(_CONSENT_HINT)
-        if "/u/login" in url or "/signin-service" in url:
-            raise WebsitePortalAuthError("SSO session expired; full re-auth required")
-        # A failed silent auth (prompt=none) can still bounce back to the portal
-        # redirectUrl carrying ?error=login_required|consent_required, so the
-        # host check alone reads it as success. Treat any error param as an
-        # expired SSO instead of caching a dead session and reporting "ok".
-        sso_error = parse_qs(urlparse(url).query).get("error", [None])[0]
-        if sso_error:
-            raise WebsitePortalAuthError(
-                f"SSO silent refresh failed (error={sso_error}); re-auth required"
-            )
-        if not (urlparse(url).hostname or "").endswith("volkswagen.de"):
-            raise WebsitePortalAuthError(f"refresh did not land on portal: {url}")
+        _validate_landing(url)
         # Landing on a volkswagen.de URL is necessary but not sufficient: the
         # chain can also terminate on a non-2xx error response (e.g. 412) that
         # still resolves to a volkswagen.de host, which every check above would

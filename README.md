@@ -53,9 +53,12 @@ For the **rich EU Data Act telemetry** there is a second one-time step —
 enabling a **continuous data request** on VW's EU Data Act portal — see
 [EU Data Act — rich vehicle telemetry](#eu-data-act--rich-vehicle-telemetry).
 
-If VW later invalidates that session, Home Assistant shows a **Reauthentication
-required** prompt on the integration — re-enter your password (plus the email
-OTP) there and the data resumes. No need to remove and re-add anything.
+VW expires that session every few days on its own schedule. The integration
+logs back in for you with the credentials you already gave it — VW remembers
+the browser, so no new OTP is needed and you won't notice. Only if VW does ask
+for a fresh code does Home Assistant show a **Reauthentication required**
+prompt: re-enter your password plus the email OTP there and the data resumes.
+No need to remove and re-add anything.
 
 VW sometimes interrupts an otherwise-valid session with a **consent/permissions
 screen**; the integration detects this and tells you. Accept it once on
