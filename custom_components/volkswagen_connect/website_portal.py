@@ -87,6 +87,15 @@ class WebsitePortalAuthError(WebsitePortalError):
     """Login/refresh failed; full re-auth (incl. OTP) needed."""
 
 
+class WebsitePortalVehicleError(WebsitePortalError):
+    """VW refuses this vehicle/endpoint on an otherwise healthy session.
+
+    A combustion car has no charging endpoint (412) and a car whose We Connect
+    licence lapsed answers 403/4007 — neither is a session problem, so neither
+    may take the account down (#25).
+    """
+
+
 class WebsitePortalConsentRequired(WebsitePortalAuthError):
     """VW's consent wall — credentials cannot clear it, only the user can."""
 
@@ -405,8 +414,16 @@ class WebsitePortalClient:
             _LOGGER.debug(
                 "portal %s -> %s after refresh; body: %.300s", path, status, body
             )
-            raise WebsitePortalAuthError(
-                f"portal session rejected (HTTP {status}) after refresh; re-auth required"
+            # The refresh above just renewed the session, so a *repeat* 403/412/
+            # 428 is VW refusing this resource, not rejecting the session. Only
+            # 401 and a bounce to the login pages mean the session itself died.
+            if status == 401 or login_redirect:
+                raise WebsitePortalAuthError(
+                    f"portal session rejected (HTTP {status}) after refresh; "
+                    "re-auth required"
+                )
+            raise WebsitePortalVehicleError(
+                f"portal refused {path.split('?')[0]} (HTTP {status}) on a fresh session"
             )
         return status, body
 
@@ -449,7 +466,7 @@ class WebsitePortalClient:
                 prefix = mod_backend.split("_", 1)[0]
                 if prefix:
                     gdc = prefix.lower()
-        except (ValueError, AttributeError, WebsitePortalAuthError) as err:
+        except (ValueError, AttributeError, WebsitePortalError) as err:
             _LOGGER.debug("Could not resolve gdc for %s, defaulting to %r: %s", vin, gdc, err)
         # Names the cluster a 412 would be coming from — first thing to ask for.
         _LOGGER.debug("Resolved gdc for %s: %s", vin, gdc)

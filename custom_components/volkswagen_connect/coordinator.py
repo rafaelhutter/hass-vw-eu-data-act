@@ -39,7 +39,11 @@ from .eu_data_act import (
     EuDataActError,
     EuDataActNotConfigured,
 )
-from .website_portal import WebsitePortalAuthError, WebsitePortalClient
+from .website_portal import (
+    WebsitePortalAuthError,
+    WebsitePortalClient,
+    WebsitePortalVehicleError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -270,38 +274,13 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
                 if vin:
                     result[vin] = VehicleData(vin=vin, info={"vin": vin})
             for vin, data in result.items():
-                maint = await self.portal.get_maintenance(vin)
-                for raw, clean in _MAINTENANCE_MAP.items():
-                    if maint.get(raw) is not None:
-                        data.values[clean] = maint[raw]
-                # Live battery/charging telemetry (already clean keys). Not every
-                # vehicle has a battery - a combustion car 412s here even with a
-                # perfectly valid session, so treat that as "no charging data"
-                # instead of tearing down the whole update as an auth failure.
                 try:
-                    data.values.update(await self.portal.get_charging(vin))
-                except WebsitePortalAuthError as err:
-                    _LOGGER.debug(
-                        "No charging data for %s (likely not an EV): %s", vin, err
-                    )
-                # Vehicle-health warning lights + last lock/unlock command.
-                data.values.update(await self.portal.get_warning_lights(vin))
-                data.values.update(await self.portal.get_lock_history(vin))
-                # Exterior images (public CDN URLs, served by the image platform).
-                # All views in one call; a side/profile shot is the primary "Image".
-                data.image_urls = await self.portal.get_vehicle_images(vin)
-                data.primary_image_view = _choose_primary_view(data.image_urls)
-                data.image_url = data.image_urls.get(data.primary_image_view or "")
-                info = await self.portal.get_vehicle_info(vin)
-                for k in ("nickName", "nickname", "licensePlate", "modelName", "engine", "exteriorColor"):
-                    if info.get(k) and not data.info.get(k):
-                        data.info[k] = info[k]
-                # Drop EU Data Act fields that duplicate a portal signal we got.
-                for portal_key, eu_fields in _PORTAL_DUPLICATES.items():
-                    if data.values.get(portal_key) is not None:
-                        for field in eu_fields:
-                            data.values.pop(field, None)
-                data.portal_ok = True
+                    await self._merge_one(vin, data)
+                except WebsitePortalVehicleError as err:
+                    # e.g. a lapsed We Connect licence (403/4007): this vehicle
+                    # has no portal data, every other one on the account still
+                    # does (#25).
+                    _LOGGER.debug("Portal serves no data for %s: %s", vin, err)
         except WebsitePortalAuthError as err:
             auth_failed = err
         except Exception as err:  # noqa: BLE001 - portal must never break EU Data Act
@@ -321,3 +300,37 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
             raise ConfigEntryAuthFailed(
                 f"Volkswagen session expired ({auth_failed}); please log in again"
             ) from auth_failed
+
+    async def _merge_one(self, vin: str, data: VehicleData) -> None:
+        """Enrich one vehicle with portal data."""
+        assert self.portal is not None
+        maint = await self.portal.get_maintenance(vin)
+        for raw, clean in _MAINTENANCE_MAP.items():
+            if maint.get(raw) is not None:
+                data.values[clean] = maint[raw]
+        # Live battery/charging telemetry (already clean keys). Not every
+        # vehicle has a battery - a combustion car 412s here even with a
+        # perfectly valid session, so skip only this call rather than the
+        # vehicle's remaining (odometer, service, lock) data.
+        try:
+            data.values.update(await self.portal.get_charging(vin))
+        except WebsitePortalVehicleError as err:
+            _LOGGER.debug("No charging data for %s (likely not an EV): %s", vin, err)
+        # Vehicle-health warning lights + last lock/unlock command.
+        data.values.update(await self.portal.get_warning_lights(vin))
+        data.values.update(await self.portal.get_lock_history(vin))
+        # Exterior images (public CDN URLs, served by the image platform).
+        # All views in one call; a side/profile shot is the primary "Image".
+        data.image_urls = await self.portal.get_vehicle_images(vin)
+        data.primary_image_view = _choose_primary_view(data.image_urls)
+        data.image_url = data.image_urls.get(data.primary_image_view or "")
+        info = await self.portal.get_vehicle_info(vin)
+        for k in ("nickName", "nickname", "licensePlate", "modelName", "engine", "exteriorColor"):
+            if info.get(k) and not data.info.get(k):
+                data.info[k] = info[k]
+        # Drop EU Data Act fields that duplicate a portal signal we got.
+        for portal_key, eu_fields in _PORTAL_DUPLICATES.items():
+            if data.values.get(portal_key) is not None:
+                for field in eu_fields:
+                    data.values.pop(field, None)
+        data.portal_ok = True

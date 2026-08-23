@@ -12,6 +12,7 @@ wp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(wp)
 
 RELOGIN_COOLDOWN_S = wp.RELOGIN_COOLDOWN_S
+WebsitePortalVehicleError = wp.WebsitePortalVehicleError
 WebsitePortalAuthError = wp.WebsitePortalAuthError
 WebsitePortalClient = wp.WebsitePortalClient
 WebsitePortalConsentRequired = wp.WebsitePortalConsentRequired
@@ -19,6 +20,35 @@ _CONSENT_HINT = wp._CONSENT_HINT
 _validate_landing = wp._validate_landing
 
 PORTAL_OK = "https://www.volkswagen.de/de/besitzer-und-nutzer/myvolkswagen.html"
+WebsitePortalError = wp.WebsitePortalError
+
+
+class _FakeResponse:
+    def __init__(self, status):
+        self.status = status
+        self.headers = {}
+
+    async def text(self):
+        return '{"error":{"code":4007}}'
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _FakeSession:
+    """Answers every GET with one fixed status."""
+
+    def __init__(self, status):
+        self._status = status
+        self.cookie_jar = ()
+
+    def get(self, *args, **kwargs):
+        return _FakeResponse(self._status)
+
+
 def client(silent_error, login_result):
     c = WebsitePortalClient(None, "a@b.c", "pw")
     calls = {"login": 0}
@@ -94,6 +124,26 @@ async def main():
                       return_value=c._last_relogin + RELOGIN_COOLDOWN_S + 1):
         await c.refresh()
     assert calls["login"] == 2, calls
+
+    # _get classification: on a session the refresh just renewed, a repeated
+    # 403/412 is VW refusing that vehicle — only 401 means the session is dead.
+    for status, expected in ((403, WebsitePortalVehicleError),
+                             (412, WebsitePortalVehicleError),
+                             (428, WebsitePortalVehicleError),
+                             (401, WebsitePortalAuthError)):
+        c = WebsitePortalClient(_FakeSession(status), "a@b.c", "pw")
+
+        async def ok():
+            return None
+
+        c.refresh = ok
+        try:
+            await c._get("/x")
+            raise AssertionError(f"expected raise for {status}")
+        except expected:
+            pass
+        except WebsitePortalError as err:
+            raise AssertionError(f"{status} raised {type(err).__name__}") from err
 
     print("ok")
 
