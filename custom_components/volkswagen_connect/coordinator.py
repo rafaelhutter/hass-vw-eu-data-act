@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -130,6 +131,19 @@ _CAPTURE_FIELDS = (
 )
 
 
+def _drop_duplicates(values: dict[str, Any], owned: set[str]) -> None:
+    """Strip EU Data Act fields the portal already reports for this vehicle.
+
+    Keyed on every signal the portal has *ever* served rather than on what
+    arrived this poll: one thin payload used to let a duplicate back in, and the
+    entity it spawned then sat dead forever once the portal recovered (#18).
+    """
+    for portal_key, eu_fields in _PORTAL_DUPLICATES.items():
+        if portal_key in owned:
+            for field_name in eu_fields:
+                values.pop(field_name, None)
+
+
 def _best_captured_at(values: dict[str, Any]) -> str | None:
     """Most recent 'captured by the car' timestamp in an EU Data Act dataset.
 
@@ -153,6 +167,8 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         self.entry = entry
         # Monotonic timestamp of the last portal session refresh (None = never).
         self._last_refresh: float | None = None
+        # VIN -> portal signals that car has ever served (see _drop_duplicates).
+        self.portal_keys: dict[str, set[str]] = defaultdict(set)
         self.client = EuDataActClient(
             async_create_clientsession(hass, cookie_jar=aiohttp.CookieJar()),
             email=entry.data[CONF_EMAIL],
@@ -315,17 +331,20 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         """Enrich one vehicle with portal data."""
         assert self.portal is not None
         maint = await self.portal.get_maintenance(vin)
-        for raw, clean in _MAINTENANCE_MAP.items():
-            if maint.get(raw) is not None:
-                data.values[clean] = maint[raw]
+        portal_values: dict[str, Any] = {
+            clean: maint[raw]
+            for raw, clean in _MAINTENANCE_MAP.items()
+            if maint.get(raw) is not None
+        }
         # Live battery/charging telemetry (already clean keys). Not every
         # vehicle has a battery - a combustion car 412s here even with a
         # perfectly valid session, so skip only this call rather than the
         # vehicle's remaining (odometer, service, lock) data.
         try:
-            data.values.update(await self.portal.get_charging(vin))
+            portal_values.update(await self.portal.get_charging(vin))
         except WebsitePortalVehicleError as err:
             _LOGGER.debug("No charging data for %s (likely not an EV): %s", vin, err)
+        data.values.update(portal_values)
         # Vehicle-health warning lights + last lock/unlock command.
         data.values.update(await self.portal.get_warning_lights(vin))
         data.values.update(await self.portal.get_lock_history(vin))
@@ -338,9 +357,6 @@ class VolkswagenConnectCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]
         for k in ("nickName", "nickname", "licensePlate", "modelName", "engine", "exteriorColor"):
             if info.get(k) and not data.info.get(k):
                 data.info[k] = info[k]
-        # Drop EU Data Act fields that duplicate a portal signal we got.
-        for portal_key, eu_fields in _PORTAL_DUPLICATES.items():
-            if data.values.get(portal_key) is not None:
-                for field in eu_fields:
-                    data.values.pop(field, None)
+        self.portal_keys[vin].update(portal_values)
+        _drop_duplicates(data.values, self.portal_keys[vin])
         data.portal_ok = True

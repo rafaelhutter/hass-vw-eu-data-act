@@ -55,7 +55,7 @@ def _purge_portal_duplicates(
 
     Their raw fields stop being fed once the cleaner portal signal arrives, so
     entities registered before that left-over sat 'unavailable' forever. Only
-    dropped where the portal actually delivered for that vehicle.
+    dropped where the portal actually serves that signal for that vehicle.
     """
     reg = er.async_get(hass)
     removed = []
@@ -63,7 +63,7 @@ def _purge_portal_duplicates(
         if not data.portal_ok:
             continue
         for portal_key, eu_fields in _PORTAL_DUPLICATES.items():
-            if data.values.get(portal_key) is None:
+            if portal_key not in coordinator.portal_keys[vin]:
                 continue
             for field in eu_fields:
                 entity_id = reg.async_get_entity_id("sensor", DOMAIN, f"{vin}_{field}")
