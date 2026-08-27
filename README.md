@@ -136,6 +136,9 @@ charge-mode settings, climate setpoints, outdoor temperature, slope and residual
 consumption, parking/light/door-lock states, and more. Cryptic VW enum codes are
 shown human-readable (the raw code stays on each sensor's `raw_value` attribute),
 and fields that duplicate a volkswagen.de sensor are dropped automatically.
+Technical signals (per-door lock and latch detail, window positions, data-feed
+health) are filed under the device's **Diagnostic** section, so the main view
+keeps the readings you actually watch.
 
 **One-time setup (in a browser):**
 
